@@ -38,7 +38,7 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> uploadScanImage(String filePath, {String? backFilePath, String? topFilePath, String? bottomFilePath, String? userId}) async {
+  Future<Map<String, dynamic>> uploadScanImage(String filePath, {String? backFilePath, String? leftFilePath, String? rightFilePath, String? topFilePath, String? bottomFilePath, String? userId}) async {
     final map = <String, dynamic>{
       'file': await MultipartFile.fromFile(filePath, filename: 'package_scan.jpg'),
     };
@@ -47,6 +47,12 @@ class ApiClient {
     }
     if (backFilePath != null) {
       map['back_file'] = await MultipartFile.fromFile(backFilePath, filename: 'package_scan_back.jpg');
+    }
+    if (leftFilePath != null) {
+      map['left_file'] = await MultipartFile.fromFile(leftFilePath, filename: 'package_scan_left.jpg');
+    }
+    if (rightFilePath != null) {
+      map['right_file'] = await MultipartFile.fromFile(rightFilePath, filename: 'package_scan_right.jpg');
     }
     if (topFilePath != null) {
       map['top_file'] = await MultipartFile.fromFile(topFilePath, filename: 'package_scan_top.jpg');

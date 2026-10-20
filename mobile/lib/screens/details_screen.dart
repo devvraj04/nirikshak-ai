@@ -40,7 +40,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   /// Track intrinsic aspect ratio of packaging images to align bounding boxes with zero error
   final Map<String, double> _imageAspectRatios = {};
 
-  /// Selected tab for structured facts table: 'front', 'back', 'all'
+  /// Selected tab for structured facts table: 'front', 'back', 'left', 'right', 'all'
   String _structuredTableTab = 'front';
 
   void _resolveImageAspect(String url) {
@@ -466,29 +466,6 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
         const SizedBox(height: 20),
 
-        // 3. RULE CAROUSEL CARD (Rule #1 of N)
-        _buildRuleCarouselCard(evaluations, mrpValue, mfgDate, expDate, score, isOverallCompliant),
-
-        const SizedBox(height: 18),
-
-        // 4. REGULATION COMPLIANCE SCORE CARD
-        _buildComplianceScoreCard(score, isOverallCompliant),
-
-        // 4B. REPORT OVERPRICING CALLOUT CARD (Rule 18(2) LMPC Act) - CITIZENS ONLY
-        if (!_isOfficer) ...[
-          const SizedBox(height: 18),
-          _buildReportOverpricingCard(
-            context: context,
-            mrpValue: mrpValue,
-            prodName: prodName,
-            mfgName: mfgName,
-            scanId: scanId,
-            imageUrls: imageUrls,
-          ),
-        ],
-
-        const SizedBox(height: 20),
-
         // 4C. LLM PACKAGING SENTENCES CARD (Brand Claims highlighted)
         _buildLlmSentencesCard(
           item: Map<String, dynamic>.from(item),
@@ -524,11 +501,6 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           declarations: Map<String, dynamic>.from(declarations),
           item: Map<String, dynamic>.from(item),
         ),
-
-        const SizedBox(height: 18),
-
-        // 6. DIGITAL E-COMMERCE TWIN
-        _buildEcommerceTwinSection(mfgName, prodName, scanId, mrpValue),
       ],
     );
   }
@@ -2655,6 +2627,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       return (v is List && v.isNotEmpty) ? v : null;
     }
 
+    final dynamic rawIngredientAnalysis = findVal('ingredient_analysis');
+    final Map<String, dynamic>? ingredientAnalysis = (rawIngredientAnalysis is Map) ? Map<String, dynamic>.from(rawIngredientAnalysis) : null;
     final ingredientsList = getStr('ingredients_list');
     final compositionText = getStr('composition');
     final allergenInfo = getStr('allergen_info');
@@ -2667,6 +2641,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
     final hasSomething = (ingredientsList != null ||
         compositionText != null ||
+        ingredientAnalysis != null ||
         allergenInfo != null ||
         storageInstructions != null ||
         usageInstructions != null ||
@@ -2723,13 +2698,16 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                     child: Icon(icon, size: 16, color: iconColor),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.8,
-                      color: iconBg.withValues(alpha: 1.0),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: iconBg.withValues(alpha: 1.0),
+                        height: 1.25,
+                      ),
                     ),
                   ),
                 ],
@@ -2818,6 +2796,718 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         title: 'INGREDIENTS / COMPOSITION',
         body: buildVerbatimText(ingredientsList, color: const Color(0xFF14532D)),
       ));
+    }
+
+    // --- Detailed Ingredient Safety & Chemical Breakdown Engine ---
+    if (ingredientAnalysis != null) {
+      final bannedList = (ingredientAnalysis['banned_ingredients_detected'] is List)
+          ? (ingredientAnalysis['banned_ingredients_detected'] as List)
+          : [];
+      final allergensList = (ingredientAnalysis['statutory_allergens_detected'] is List)
+          ? (ingredientAnalysis['statutory_allergens_detected'] as List)
+          : [];
+      final allIngredientsList = (ingredientAnalysis['all_ingredients'] is List)
+          ? (ingredientAnalysis['all_ingredients'] as List)
+          : [];
+      final safetyScore = ingredientAnalysis['safety_score'] ?? 100;
+      final safetyRating = ingredientAnalysis['overall_safety_rating']?.toString() ?? 'ASSESSED';
+
+      // 1. Critical Banned Substances Alert Card
+      if (bannedList.isNotEmpty) {
+        sections.add(
+          Container(
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFEF4444), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.dangerous_rounded, color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'PROHIBITED / BANNED INGREDIENT DETECTED',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFFB91C1C),
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            Text(
+                              '${bannedList.length} illegal or strictly banned substance(s) identified',
+                              style: const TextStyle(fontSize: 11.5, color: Color(0xFF991B1B)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...bannedList.map((b) {
+                    final bMap = (b is Map) ? b : {};
+                    final details = (bMap['banned_details'] is Map) ? bMap['banned_details'] : {};
+                    return Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            bMap['canonical_name']?.toString() ?? 'Unknown Chemical',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF991B1B),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '⛔ Status: ${details['status'] ?? 'BANNED'}',
+                            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
+                          ),
+                          Text(
+                            '🏛️ Banned in: ${(details['banned_jurisdictions'] as List?)?.join(', ') ?? 'FSSAI / Global'}',
+                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF4B5563)),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '⚠️ Hazard: ${details['hazard_summary'] ?? bMap['what_is_it'] ?? ''}',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF1F2937), height: 1.3),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      // 2. Allergen & Chemical Sensitivities Card
+      if (allergensList.isNotEmpty) {
+        sections.add(
+          buildSectionCard(
+            icon: Icons.health_and_safety_rounded,
+            iconBg: const Color(0xFFEA580C),
+            iconColor: Colors.white,
+            title: 'ALLERGEN & HEALTH SENSITIVITY ALERTS (${allergensList.length})',
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: allergensList.map((al) {
+                final alMap = (al is Map) ? al : {};
+                final sev = alMap['severity']?.toString() ?? 'MODERATE';
+                final isCritical = sev == 'CRITICAL';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isCritical ? const Color(0xFFFFF7ED) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: isCritical ? const Color(0xFFFDBA74) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isCritical ? Icons.warning_rounded : Icons.info_outline_rounded,
+                            size: 16,
+                            color: isCritical ? const Color(0xFFC2410C) : const Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              alMap['display_name']?.toString() ?? 'Allergen',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: isCritical ? const Color(0xFFC2410C) : const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isCritical ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              sev,
+                              style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '👤 Sensitive to: ${alMap['sensitive_population'] ?? ''}',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569)),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '🩺 Symptoms: ${alMap['symptoms'] ?? ''}',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155), height: 1.3),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      }
+
+      // 3. Complete Ingredient-by-Ingredient Tabular Matrix & Chemical Decoder
+      if (allIngredientsList.isNotEmpty) {
+        String activeIngFilter = 'all';
+
+        sections.add(
+          StatefulBuilder(
+            builder: (context, setIngState) {
+              List filteredIngredients = allIngredientsList;
+              if (activeIngFilter == 'banned') {
+                filteredIngredients = allIngredientsList.where((i) => (i is Map) && (i['is_banned'] == true)).toList();
+              } else if (activeIngFilter == 'allergens') {
+                filteredIngredients = allIngredientsList.where((i) {
+                  if (i is! Map) return false;
+                  final risk = (i['allergy_and_health_risk'] ?? '').toString().toLowerCase();
+                  final alList = i['allergens_detected'] as List?;
+                  return (alList != null && alList.isNotEmpty) ||
+                      risk.contains('allergy') ||
+                      risk.contains('allergic') ||
+                      risk.contains('celiac') ||
+                      risk.contains('asthma') ||
+                      risk.contains('gluten') ||
+                      risk.contains('lactose') ||
+                      risk.contains('urticaria') ||
+                      risk.contains('anaphylaxis');
+                }).toList();
+              } else if (activeIngFilter == 'addictive') {
+                filteredIngredients = allIngredientsList.where((i) {
+                  if (i is! Map) return false;
+                  final lvl = (i['addictiveness_level'] ?? '').toString().toUpperCase();
+                  return lvl.contains('HIGH') || lvl.contains('MOD');
+                }).toList();
+              }
+
+              final bannedCount = allIngredientsList.where((i) => (i is Map) && (i['is_banned'] == true)).length;
+              final allergenCount = allIngredientsList.where((i) {
+                if (i is! Map) return false;
+                final risk = (i['allergy_and_health_risk'] ?? '').toString().toLowerCase();
+                final alList = i['allergens_detected'] as List?;
+                return (alList != null && alList.isNotEmpty) || risk.contains('allergy') || risk.contains('allergic') || risk.contains('celiac') || risk.contains('asthma');
+              }).length;
+              final addictiveCount = allIngredientsList.where((i) {
+                if (i is! Map) return false;
+                final lvl = (i['addictiveness_level'] ?? '').toString().toUpperCase();
+                return lvl.contains('HIGH') || lvl.contains('MOD');
+              }).length;
+
+              Color getAddictColor(String lvl) {
+                if (lvl.contains('HIGH')) return const Color(0xFFDC2626);
+                if (lvl.contains('MOD')) return const Color(0xFFD97706);
+                if (lvl.contains('LOW')) return const Color(0xFF0284C7);
+                return const Color(0xFF16A34A);
+              }
+
+              String getAddictLabel(String lvl) {
+                if (lvl.contains('HIGH')) return '⚡ HIGH CRAVING';
+                if (lvl.contains('MOD')) return '⚠️ HABIT FORMING';
+                if (lvl.contains('LOW')) return 'MILD';
+                return '✓ NON-ADDICTIVE';
+              }
+
+              Widget buildFilterPill(String key, String label, int count, IconData icon, Color color) {
+                final isSelected = activeIngFilter == key;
+                return GestureDetector(
+                  onTap: () => setIngState(() => activeIngFilter = key),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isSelected ? color : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: isSelected ? color : const Color(0xFFE2E8F0)),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: color.withValues(alpha: 0.25),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 12, color: isSelected ? Colors.white : color),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$label ($count)',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                            color: isSelected ? Colors.white : const Color(0xFF334155),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return buildSectionCard(
+                icon: Icons.table_view_rounded,
+                iconBg: const Color(0xFF0D9488),
+                iconColor: Colors.white,
+                title: 'TABULAR INGREDIENTS MATRIX &\nCHEMICAL REPORT (${allIngredientsList.length})',
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Safety Score Briefing Bar
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0FDFA),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF99F6E4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.verified_user_rounded, size: 18, color: Color(0xFF0D9488)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Formulation Safety Score: $safetyScore/100 • $safetyRating',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF0F766E)),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0D9488),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'LLM Research',
+                              style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Filter Pills Row
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          buildFilterPill('all', 'All Items', allIngredientsList.length, Icons.layers_rounded, const Color(0xFF0D9488)),
+                          const SizedBox(width: 6),
+                          if (bannedCount > 0) ...[
+                            buildFilterPill('banned', 'Banned / Prohibited', bannedCount, Icons.dangerous_rounded, const Color(0xFFDC2626)),
+                            const SizedBox(width: 6),
+                          ],
+                          if (allergenCount > 0) ...[
+                            buildFilterPill('allergens', 'Allergen Alert', allergenCount, Icons.warning_rounded, const Color(0xFFEA580C)),
+                            const SizedBox(width: 6),
+                          ],
+                          if (addictiveCount > 0) ...[
+                            buildFilterPill('addictive', 'Habit Forming', addictiveCount, Icons.bolt_rounded, const Color(0xFF7C3AED)),
+                            const SizedBox(width: 6),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Scroll guidance notice
+                    const Row(
+                      children: [
+                        Icon(Icons.swipe_left_rounded, size: 14, color: Color(0xFF94A3B8)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Swipe horizontally to review all analytical parameters across columns',
+                          style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // FULL TABULAR SPREADSHEET (Horizontally Scrollable)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: IntrinsicWidth(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Table Header
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                  color: const Color(0xFFF1F5F9),
+                                  child: const Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 170,
+                                        child: Text(
+                                          'INGREDIENT & IDENTITY',
+                                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 0.6),
+                                        ),
+                                      ),
+                                      SizedBox(width: 14),
+                                      SizedBox(
+                                        width: 130,
+                                        child: Text(
+                                          'CLASS & ORIGIN',
+                                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 0.6),
+                                        ),
+                                      ),
+                                      SizedBox(width: 14),
+                                      SizedBox(
+                                        width: 160,
+                                        child: Text(
+                                          'ADEQUATE USAGE (ADI)',
+                                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 0.6),
+                                        ),
+                                      ),
+                                      SizedBox(width: 14),
+                                      SizedBox(
+                                        width: 160,
+                                        child: Text(
+                                          'RECOMMENDED LIMIT',
+                                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 0.6),
+                                        ),
+                                      ),
+                                      SizedBox(width: 14),
+                                      SizedBox(
+                                        width: 170,
+                                        child: Text(
+                                          'ADDICTIVENESS LEVEL',
+                                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 0.6),
+                                        ),
+                                      ),
+                                      SizedBox(width: 14),
+                                      SizedBox(
+                                        width: 250,
+                                        child: Text(
+                                          'BIOMEDICAL ALLERGIES & RISKS',
+                                          style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900, color: Color(0xFF475569), letterSpacing: 0.6),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Divider(height: 1, thickness: 0.5, color: Color(0xFFCBD5E1)),
+
+                                // Table Rows
+                                ...filteredIngredients.asMap().entries.map((entry) {
+                                  final idx = entry.key;
+                                  final ing = entry.value;
+                                  final ingMap = (ing is Map) ? ing : {};
+                                  final isBanned = ingMap['is_banned'] == true;
+                                  final name = ingMap['canonical_name']?.toString() ?? 'Ingredient';
+                                  final insCode = ingMap['ins_code']?.toString();
+                                  final category = ingMap['category']?.toString() ?? 'Additive';
+                                  final origin = ingMap['origin']?.toString() ?? 'Commercial';
+                                  final adequate = ingMap['adequate_usage']?.toString() ?? 'Quantum satis (GMP)';
+                                  final recommended = ingMap['recommended_usage']?.toString() ?? 'Consume in moderation';
+                                  final addictLvl = (ingMap['addictiveness_level']?.toString() ?? 'NONE').toUpperCase();
+                                  final addictDetails = ingMap['addictiveness_details']?.toString() ?? '';
+                                  final allergy = ingMap['allergy_and_health_risk']?.toString() ?? 'Hypoallergenic; no severe IgE reactions documented.';
+                                  final isEven = idx % 2 == 0;
+
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                    color: isBanned
+                                        ? const Color(0xFFFEF2F2)
+                                        : (isEven ? Colors.white : const Color(0xFFF8FAFC)),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // 1. INGREDIENT & IDENTITY
+                                        SizedBox(
+                                          width: 170,
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                name,
+                                                style: TextStyle(
+                                                  fontSize: 12.5,
+                                                  fontWeight: FontWeight.w800,
+                                                  color: isBanned ? const Color(0xFFB91C1C) : const Color(0xFF0F172A),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Wrap(
+                                                spacing: 4,
+                                                runSpacing: 2,
+                                                children: [
+                                                  if (insCode != null && insCode.isNotEmpty)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFE0E7FF),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        insCode,
+                                                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF3730A3)),
+                                                      ),
+                                                    ),
+                                                  if (isBanned)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFFDC2626),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: const Text(
+                                                        'BANNED',
+                                                        style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.white),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+
+                                        // 2. CLASS & ORIGIN
+                                        SizedBox(
+                                          width: 130,
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                category,
+                                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Src: $origin',
+                                                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+
+                                        // 3. ADEQUATE USAGE (ADI)
+                                        SizedBox(
+                                          width: 160,
+                                          child: Text(
+                                            adequate,
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0F766E), height: 1.3),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+
+                                        // 4. RECOMMENDED LIMIT
+                                        SizedBox(
+                                          width: 160,
+                                          child: Text(
+                                            recommended,
+                                            style: const TextStyle(fontSize: 11, color: Color(0xFF334155), height: 1.3),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+
+                                        // 5. ADDICTIVENESS
+                                        SizedBox(
+                                          width: 170,
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: getAddictColor(addictLvl).withValues(alpha: 0.12),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(color: getAddictColor(addictLvl).withValues(alpha: 0.3)),
+                                                ),
+                                                child: Text(
+                                                  getAddictLabel(addictLvl),
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: getAddictColor(addictLvl),
+                                                  ),
+                                                ),
+                                              ),
+                                              if (addictDetails.isNotEmpty) ...[
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  addictDetails,
+                                                  style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), height: 1.25),
+                                                  maxLines: 3,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+
+                                        // 6. BIOMEDICAL ALLERGIES & RISKS
+                                        SizedBox(
+                                          width: 250,
+                                          child: Text(
+                                            allergy,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isBanned ? const Color(0xFF991B1B) : const Color(0xFF1E293B),
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Expandable Biochemical Meanings & Purpose Cards
+                    const Text(
+                      'CHEMICAL NATURE & FORMULATION PURPOSE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    ...filteredIngredients.map((ing) {
+                      final ingMap = (ing is Map) ? ing : {};
+                      final name = ingMap['canonical_name']?.toString() ?? 'Ingredient';
+                      final isBanned = ingMap['is_banned'] == true;
+                      final meaning = ingMap['what_is_it']?.toString() ?? '';
+                      final purpose = ingMap['why_used']?.toString() ?? '';
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isBanned ? const Color(0xFFFEF2F2) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isBanned ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: isBanned ? const Color(0xFFB91C1C) : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (ingMap['origin'] != null)
+                                  Text(
+                                    'Origin: ${ingMap['origin']}',
+                                    style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                                  ),
+                              ],
+                            ),
+                            if (meaning.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              RichText(
+                                text: TextSpan(
+                                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155), height: 1.35),
+                                  children: [
+                                    const TextSpan(text: '🔬 Meaning: ', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                                    TextSpan(text: meaning),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            if (purpose.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              RichText(
+                                text: TextSpan(
+                                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155), height: 1.35),
+                                  children: [
+                                    const TextSpan(text: '🎯 Why Used: ', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                                    TextSpan(text: purpose),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      }
     }
 
     // --- Composition (if separate from ingredients) ---
@@ -3116,6 +3806,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     // 1. Data collections
     final List<Map<String, dynamic>> frontItems = [];
     final List<Map<String, dynamic>> backItems = [];
+    final List<Map<String, dynamic>> leftItems = [];
+    final List<Map<String, dynamic>> rightItems = [];
     final List<Map<String, dynamic>> allKvItems = [];
 
     // Helper to safely add an item
@@ -3147,9 +3839,18 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         'isMono': isMono,
       };
 
-      if (panel.toUpperCase().contains('FRONT')) {
+      final panUpper = panel.toUpperCase();
+      if (panUpper.contains('FRONT')) {
         if (!frontItems.any((x) => x['parameter'] == parameter)) {
           frontItems.add(itemMap);
+        }
+      } else if (panUpper.contains('LEFT')) {
+        if (!leftItems.any((x) => x['parameter'] == parameter)) {
+          leftItems.add(itemMap);
+        }
+      } else if (panUpper.contains('RIGHT')) {
+        if (!rightItems.any((x) => x['parameter'] == parameter)) {
+          rightItems.add(itemMap);
         }
       } else {
         if (!backItems.any((x) => x['parameter'] == parameter)) {
@@ -3196,6 +3897,46 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
               value: v,
               category: c,
               panel: 'BACK',
+              isNonCompliant: isRuleFailed([p, c]),
+            );
+          }
+        }
+      }
+    }
+
+    final rawLeft = findList('left_panel_table');
+    if (rawLeft != null) {
+      for (var it in rawLeft) {
+        if (it is Map) {
+          final p = (it['parameter'] ?? it['key'] ?? '').toString();
+          final v = (it['declared_value'] ?? it['value'] ?? '').toString();
+          final c = (it['category'] ?? 'Side Panel Declaration').toString();
+          if (p.isNotEmpty && v.isNotEmpty) {
+            addItem(
+              parameter: p,
+              value: v,
+              category: c,
+              panel: 'LEFT',
+              isNonCompliant: isRuleFailed([p, c]),
+            );
+          }
+        }
+      }
+    }
+
+    final rawRight = findList('right_panel_table');
+    if (rawRight != null) {
+      for (var it in rawRight) {
+        if (it is Map) {
+          final p = (it['parameter'] ?? it['key'] ?? '').toString();
+          final v = (it['declared_value'] ?? it['value'] ?? '').toString();
+          final c = (it['category'] ?? 'Side Panel Declaration').toString();
+          if (p.isNotEmpty && v.isNotEmpty) {
+            addItem(
+              parameter: p,
+              value: v,
+              category: c,
+              panel: 'RIGHT',
               isNonCompliant: isRuleFailed([p, c]),
             );
           }
@@ -3463,7 +4204,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       'barcode', 'ean_code', 'gtin', 'upc',
       'veg_nonveg', 'is_vegetarian', 'dietary_indicator',
       'dynamic_fields', 'raw_extractions', 'raw_declarations', 'field_confidence', 'bounding_boxes',
-      'brand_claims', 'summary_sentences', 'declarations_table', 'front_panel_table', 'back_panel_table', 'all_key_value_pairs',
+      'brand_claims', 'summary_sentences', 'declarations_table', 'front_panel_table', 'back_panel_table', 'left_panel_table', 'right_panel_table', 'all_key_value_pairs',
     };
 
     void addDynamicField(String k, dynamic v) {
@@ -3496,12 +4237,16 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       }
     });
 
-    // Determine active items based on _structuredTableTab ('front' | 'back' | 'all')
+    // Determine active items based on _structuredTableTab ('front' | 'back' | 'left' | 'right' | 'all')
     List<Map<String, dynamic>> activeItems = [];
     if (_structuredTableTab == 'front') {
       activeItems = frontItems;
     } else if (_structuredTableTab == 'back') {
       activeItems = backItems;
+    } else if (_structuredTableTab == 'left') {
+      activeItems = leftItems;
+    } else if (_structuredTableTab == 'right') {
+      activeItems = rightItems;
     } else {
       activeItems = allKvItems;
     }
@@ -3553,7 +4298,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         ),
         const SizedBox(height: 10),
 
-        // Interactive Segmented Tab Selector: Front vs Back vs All Key-Values
+        // Interactive Segmented Tab Selector: Front vs Back vs Left vs Right vs All Key-Values
         Container(
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
@@ -3561,12 +4306,22 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppTheme.slate200),
           ),
-          child: Row(
-            children: [
-              _buildTabPill('front', 'Front of Pack', Icons.crop_portrait_rounded, frontItems.length),
-              _buildTabPill('back', 'Back of Pack', Icons.flip_to_back_rounded, backItems.length),
-              _buildTabPill('all', 'All Key-Values', Icons.data_object_rounded, allKvItems.length),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildTabPill('front', 'Front', Icons.crop_portrait_rounded, frontItems.length),
+                const SizedBox(width: 3),
+                _buildTabPill('back', 'Back', Icons.flip_to_back_rounded, backItems.length),
+                const SizedBox(width: 3),
+                _buildTabPill('left', 'Left Panel', Icons.align_horizontal_left_rounded, leftItems.length),
+                const SizedBox(width: 3),
+                _buildTabPill('right', 'Right Panel', Icons.align_horizontal_right_rounded, rightItems.length),
+                const SizedBox(width: 3),
+                _buildTabPill('all', 'All KV', Icons.data_object_rounded, allKvItems.length),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -3579,7 +4334,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                 ? 'Front Display Panel (PDP) — Mandatory statutory identity, net measure & consumer marks.'
                 : (_structuredTableTab == 'back'
                     ? 'Information Panel — Statutory Legal Metrology declarations, manufacturing/expiry dates & licensing.'
-                    : 'All Key-Value Extractions — Complete raw-to-structured parameter mapping directly from raw OCR.'),
+                    : (_structuredTableTab == 'left'
+                        ? 'Left Panel — Ingredients, allergen advisory, storage & handling instructions.'
+                        : (_structuredTableTab == 'right'
+                            ? 'Right Panel — Nutritional facts, barcoding, batching & statutory certifications.'
+                            : 'All Key-Value Extractions — Complete raw-to-structured parameter mapping directly from raw OCR.'))),
             style: const TextStyle(fontSize: 10.5, color: AppTheme.slate500, fontWeight: FontWeight.w500),
           ),
         ),
@@ -3683,50 +4442,45 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
   Widget _buildTabPill(String tabKey, String label, IconData icon, int count) {
     final isSelected = _structuredTableTab == tabKey;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _structuredTableTab = tabKey);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 7),
-          decoration: BoxDecoration(
-            color: isSelected ? AppTheme.emerald600 : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: AppTheme.emerald600.withValues(alpha: 0.28),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 13,
+    return GestureDetector(
+      onTap: () {
+        setState(() => _structuredTableTab = tabKey);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.emerald600 : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppTheme.emerald600.withValues(alpha: 0.28),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: isSelected ? Colors.white : AppTheme.slate600,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '$label ($count)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 color: isSelected ? Colors.white : AppTheme.slate600,
               ),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  '$label ($count)',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    color: isSelected ? Colors.white : AppTheme.slate600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
+              maxLines: 1,
+            ),
+          ],
         ),
       ),
     );
@@ -3746,7 +4500,32 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         value.trim().isEmpty ||
         value.trim().toLowerCase() == 'null' ||
         value.trim().toLowerCase() == 'none';
-    final isFront = panel.toUpperCase().contains('FRONT');
+    final panUpper = panel.toUpperCase();
+    final isFront = panUpper.contains('FRONT');
+    final isLeft = panUpper.contains('LEFT');
+    final isRight = panUpper.contains('RIGHT');
+
+    Color badgeBg;
+    Color badgeText;
+    String badgeLabel;
+
+    if (isFront) {
+      badgeBg = AppTheme.emerald500.withValues(alpha: 0.12);
+      badgeText = AppTheme.emerald700;
+      badgeLabel = 'FRONT';
+    } else if (isLeft) {
+      badgeBg = const Color(0xFF0284C7).withValues(alpha: 0.12); // Sky 600
+      badgeText = const Color(0xFF0369A1);
+      badgeLabel = 'LEFT';
+    } else if (isRight) {
+      badgeBg = const Color(0xFFD97706).withValues(alpha: 0.12); // Amber 600
+      badgeText = const Color(0xFFB45309);
+      badgeLabel = 'RIGHT';
+    } else {
+      badgeBg = const Color(0xFF6366F1).withValues(alpha: 0.12); // Indigo
+      badgeText = const Color(0xFF4F46E5);
+      badgeLabel = 'BACK';
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -3774,17 +4553,15 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: isFront
-                            ? AppTheme.emerald500.withValues(alpha: 0.12)
-                            : const Color(0xFF6366F1).withValues(alpha: 0.12),
+                        color: badgeBg,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        isFront ? 'FRONT' : 'BACK',
+                        badgeLabel,
                         style: TextStyle(
                           fontSize: 8.5,
                           fontWeight: FontWeight.w900,
-                          color: isFront ? AppTheme.emerald700 : const Color(0xFF4F46E5),
+                          color: badgeText,
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -4872,61 +5649,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                     ),
                   ),
 
-                  const SizedBox(width: 6),
-
-                  // Report Overpricing Button
-                  Expanded(
-                    flex: 6,
-                    child: GestureDetector(
-                      onTap: () {
-                        context.push(
-                          '/complaint',
-                          extra: {
-                            'mrp': parsedMrp,
-                            'product_name': prodName,
-                            'manufacturer_name': mfgName,
-                            'product_image_path': frontImg?.toString(),
-                            'scan_id': scanId,
-                          },
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF1F2),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFFECDD3)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFE11D48).withValues(alpha: 0.06),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.report_problem_rounded, size: 15, color: Color(0xFFE11D48)),
-                            SizedBox(width: 4),
-                            Text(
-                              'Report MRP',
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFBE123C),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
 
                   // Export Full Report Button
                   Expanded(
-                    flex: 7,
+                    flex: 6,
                     child: GestureDetector(
                       onTap: () => _downloadPdfReport(context, isComplaint, scanId),
                       child: Container(

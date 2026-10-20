@@ -46,6 +46,8 @@ class ExtractedDeclarations:
     declarations_table: Optional[List[Dict[str, Any]]] = None
     front_panel_table: Optional[List[Dict[str, Any]]] = None
     back_panel_table: Optional[List[Dict[str, Any]]] = None
+    left_panel_table: Optional[List[Dict[str, Any]]] = None
+    right_panel_table: Optional[List[Dict[str, Any]]] = None
     all_key_value_pairs: Optional[List[Dict[str, Any]]] = None
     # ---- Full verbatim text blocks (not truncated, not summarised) ----
     ingredients_list: Optional[str] = None
@@ -540,19 +542,76 @@ class DeclarationExtractor:
         return table
 
     @staticmethod
+    def _extract_side_ocr_text(ocr_text: str, side: str) -> str:
+        """Extract text chunk corresponding to [SIDE LABEL]."""
+        tag = f"[{side.upper()} LABEL]"
+        if tag not in ocr_text:
+            return ""
+        parts = ocr_text.split(tag)
+        if len(parts) > 1:
+            chunk = parts[1].split("[")[0]
+            return chunk.strip()
+        return ""
+
+    @classmethod
+    def _build_left_panel_table(cls, merged: Dict[str, Any], ocr_text: str) -> List[Dict[str, Any]]:
+        """Construct structured table of key-value pairs strictly on the LEFT face."""
+        table = []
+        left_text = cls._extract_side_ocr_text(ocr_text, "left")
+        if left_text:
+            for line in left_text.splitlines():
+                line = line.strip()
+                if ":" in line and len(line) > 3:
+                    k, v = line.split(":", 1)
+                    if k.strip() and v.strip():
+                        table.append({
+                            "key": k.strip(),
+                            "value": v.strip(),
+                            "category": "Left Panel Declaration",
+                            "panel": "left",
+                            "is_brand_claim": False,
+                        })
+        return table
+
+    @classmethod
+    def _build_right_panel_table(cls, merged: Dict[str, Any], ocr_text: str) -> List[Dict[str, Any]]:
+        """Construct structured table of key-value pairs strictly on the RIGHT face."""
+        table = []
+        right_text = cls._extract_side_ocr_text(ocr_text, "right")
+        if right_text:
+            for line in right_text.splitlines():
+                line = line.strip()
+                if ":" in line and len(line) > 3:
+                    k, v = line.split(":", 1)
+                    if k.strip() and v.strip():
+                        table.append({
+                            "key": k.strip(),
+                            "value": v.strip(),
+                            "category": "Right Panel Declaration",
+                            "panel": "right",
+                            "is_brand_claim": False,
+                        })
+        return table
+
+    @staticmethod
     def _build_all_key_value_pairs(
         merged: Dict[str, Any],
         brand_claims: List[Dict[str, Any]],
         front_table: List[Dict[str, Any]],
         back_table: List[Dict[str, Any]],
+        left_table: Optional[List[Dict[str, Any]]] = None,
+        right_table: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Construct comprehensive master list of all key-value pairs without loss of detail."""
         pairs = []
         seen_keys: set = set()
 
-        for item in front_table:
-            k = item.get("key") or item.get("attribute") or ""
-            if k and k.lower() not in seen_keys:
+        for table in [front_table, back_table, left_table or [], right_table or []]:
+            for item in table:
+                k = item.get("key") or item.get("attribute") or ""
+                if k and k.lower() not in seen_keys:
+                    seen_keys.add(k.lower())
+                    pairs.append(item)
                 seen_keys.add(k.lower())
                 pairs.append({
                     "key": k,
@@ -860,9 +919,17 @@ class DeclarationExtractor:
         if not back_panel_table or not isinstance(back_panel_table, list) or len(back_panel_table) == 0:
             back_panel_table = self._build_back_panel_table(merged, brand_claims, ocr_text)
 
+        left_panel_table = l2_raw.get("left_panel_table") if isinstance(l2_raw, dict) else None
+        if not left_panel_table or not isinstance(left_panel_table, list) or len(left_panel_table) == 0:
+            left_panel_table = self._build_left_panel_table(merged, ocr_text)
+
+        right_panel_table = l2_raw.get("right_panel_table") if isinstance(l2_raw, dict) else None
+        if not right_panel_table or not isinstance(right_panel_table, list) or len(right_panel_table) == 0:
+            right_panel_table = self._build_right_panel_table(merged, ocr_text)
+
         all_key_value_pairs = l2_raw.get("all_key_value_pairs") if isinstance(l2_raw, dict) else None
         if not all_key_value_pairs or not isinstance(all_key_value_pairs, list) or len(all_key_value_pairs) == 0:
-            all_key_value_pairs = self._build_all_key_value_pairs(merged, brand_claims, front_panel_table, back_panel_table)
+            all_key_value_pairs = self._build_all_key_value_pairs(merged, brand_claims, front_panel_table, back_panel_table, left_panel_table, right_panel_table)
 
         declarations_table = l2_raw.get("declarations_table") if isinstance(l2_raw, dict) else None
         if not declarations_table or not isinstance(declarations_table, list) or len(declarations_table) == 0:
@@ -906,6 +973,8 @@ class DeclarationExtractor:
             declarations_table=declarations_table,
             front_panel_table=front_panel_table,
             back_panel_table=back_panel_table,
+            left_panel_table=left_panel_table,
+            right_panel_table=right_panel_table,
             all_key_value_pairs=all_key_value_pairs,
             ingredients_list=ingredients_list,
             nutrition_table=nutrition_table if isinstance(nutrition_table, list) else None,
@@ -926,6 +995,8 @@ class DeclarationExtractor:
                 "declarations_table": declarations_table,
                 "front_panel_table": front_panel_table,
                 "back_panel_table": back_panel_table,
+                "left_panel_table": left_panel_table,
+                "right_panel_table": right_panel_table,
                 "all_key_value_pairs": all_key_value_pairs,
                 "ingredients_list": ingredients_list,
                 "nutrition_table": nutrition_table if isinstance(nutrition_table, list) else None,

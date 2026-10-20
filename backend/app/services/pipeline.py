@@ -20,6 +20,7 @@ from app.services.ocr.ocr_engine import OCREngine
 from app.services.rag.rag_pipeline import RAGPipeline
 from app.services.rules.rule_engine import RuleEngine
 from app.services.storage import StorageService
+from app.services.ingredients.ingredient_engine import ingredient_engine
 
 logger = get_logger("services.pipeline")
 
@@ -209,11 +210,19 @@ class CompliancePipeline:
             all_raw_text_parts = []
             all_bboxes = []  # Collect all bboxes for evidence cropping
             ocr_records = []
-            side_labels = ["front", "back", "extra"]
-            primary_image_path = image_paths[0]
 
-            for idx, image_path in enumerate(image_paths):
-                side = side_labels[idx] if idx < len(side_labels) else f"side_{idx}"
+            # Normalize image inputs into a structured list of (side, image_path)
+            if isinstance(image_paths, dict):
+                items = list(image_paths.items())
+            elif isinstance(image_paths, list) and image_paths and isinstance(image_paths[0], (tuple, list)):
+                items = [(side, str(p)) for side, p in image_paths]
+            else:
+                side_labels = ["front", "back", "left", "right", "top", "bottom"]
+                items = [(side_labels[idx] if idx < len(side_labels) else f"side_{idx}", str(p)) for idx, p in enumerate(image_paths)]
+
+            primary_image_path = items[0][1]
+
+            for side, image_path in items:
                 ocr_payload = self.ocr_engine.process_image(image_path)
 
                 # Store each OCR Result in Database
@@ -246,6 +255,13 @@ class CompliancePipeline:
 
             # 3. Layered Declaration Extraction on combined text from ALL images
             declarations = self.extractor.extract_declarations(combined_ocr_text)
+
+            # 3.1 Comprehensive Ingredient Safety & Chemical Breakdown Engine
+            ingr_text = getattr(declarations, "ingredients_list", None) or getattr(declarations, "composition", None) or ""
+            ingredient_analysis = ingredient_engine.analyze_full_product(ingr_text)
+            if declarations.raw_extractions is None:
+                declarations.raw_extractions = {}
+            declarations.raw_extractions["ingredient_analysis"] = ingredient_analysis
 
             # Store Declarations in Database
             decl_record = Declaration(
@@ -392,8 +408,11 @@ class CompliancePipeline:
                 "declarations_table": getattr(declarations, "declarations_table", []) or [],
                 "front_panel_table": getattr(declarations, "front_panel_table", []) or [],
                 "back_panel_table": getattr(declarations, "back_panel_table", []) or [],
+                "left_panel_table": getattr(declarations, "left_panel_table", []) or [],
+                "right_panel_table": getattr(declarations, "right_panel_table", []) or [],
                 "all_key_value_pairs": getattr(declarations, "all_key_value_pairs", []) or [],
                 "ingredients_list": getattr(declarations, "ingredients_list", None),
+                "ingredient_analysis": ingredient_analysis,
                 "nutrition_table": getattr(declarations, "nutrition_table", None),
                 "allergen_info": getattr(declarations, "allergen_info", None),
                 "storage_instructions": getattr(declarations, "storage_instructions", None),
@@ -424,6 +443,8 @@ class CompliancePipeline:
                     "declarations_table": getattr(declarations, "declarations_table", []) or [],
                     "front_panel_table": getattr(declarations, "front_panel_table", []) or [],
                     "back_panel_table": getattr(declarations, "back_panel_table", []) or [],
+                    "left_panel_table": getattr(declarations, "left_panel_table", []) or [],
+                    "right_panel_table": getattr(declarations, "right_panel_table", []) or [],
                     "all_key_value_pairs": getattr(declarations, "all_key_value_pairs", []) or [],
                     **({k: v for k, v in (getattr(declarations, "dynamic_fields", None) or {}).items() if v is not None}),
                     **({k: v for k, v in (getattr(declarations, "raw_extractions", None) or {}).items() if v is not None}),

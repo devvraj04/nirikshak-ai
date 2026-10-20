@@ -83,7 +83,13 @@ export interface ScanItem {
   brand_claims?: BrandClaim[];
   summary_sentences?: string[] | string;
   declarations_table?: DeclarationTableRow[];
+  front_panel_table?: any[];
+  back_panel_table?: any[];
+  left_panel_table?: any[];
+  right_panel_table?: any[];
   product_category?: string;
+  ingredients_list?: string;
+  ingredient_analysis?: IngredientAnalysis;
   compliance_summary?: {
     passed_rules: number;
     failed_rules: number;
@@ -91,6 +97,39 @@ export interface ScanItem {
     compliance_score: number;
   };
   evaluations?: ScanEvaluation[];
+}
+
+export interface AnalyzedIngredient {
+  raw_text: string;
+  canonical_name: string;
+  ins_code?: string | null;
+  category: string;
+  what_is_it: string;
+  why_used: string;
+  origin: string;
+  adequate_usage?: string;
+  recommended_usage?: string;
+  addictiveness_level?: 'HIGH' | 'MODERATE' | 'LOW' | 'NONE' | string;
+  addictiveness_details?: string;
+  allergy_and_health_risk: string;
+  is_banned: boolean;
+  banned_details?: Record<string, any>;
+  allergens_detected?: string[];
+  allergen_details?: any[];
+  dietary_flags?: string[];
+}
+
+export interface IngredientAnalysis {
+  total_ingredients_count: number;
+  overall_safety_rating: string;
+  safety_score: number;
+  is_compliant: boolean;
+  banned_ingredients_count: number;
+  banned_ingredients_detected: AnalyzedIngredient[];
+  statutory_allergens_count: number;
+  statutory_allergens_detected: any[];
+  all_ingredients: AnalyzedIngredient[];
+  executive_summary: string;
 }
 
 export interface BrandRating {

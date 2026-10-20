@@ -197,8 +197,8 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       final uploadRes = await _apiClient.uploadScanImage(
         _frontImage!.path,
         backFilePath: _backImage?.path,
-        topFilePath: _leftImage?.path,
-        bottomFilePath: _rightImage?.path,
+        leftFilePath: _leftImage?.path,
+        rightFilePath: _rightImage?.path,
         userId: auth.userId,
       );
       final String scanId = uploadRes['scan_id'];
