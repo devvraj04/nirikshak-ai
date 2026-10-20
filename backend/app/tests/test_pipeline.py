@@ -1,4 +1,4 @@
-"""
+﻿"""
 NIRIKSHAK AI - End-to-End Compliance Pipeline & Rule Engine Tests.
 """
 
@@ -44,12 +44,13 @@ def test_rule_engine_synthetic_complete_pass():
         manufacture_month=8,
         manufacture_year=2026,
         consumer_care_email="care@naturefoods.com",
+        expiry_date="Best Before 12 months from packaging",
     )
 
     report = engine.evaluate_declarations("scan_test_002", declarations)
     assert report.overall_status == ComplianceStatus.PASS
     assert report.failed_count == 0
-    assert report.passed_count == 5
+    assert report.passed_count == 7
 
 
 def test_layered_declaration_extractor_regex():
@@ -70,3 +71,4 @@ def test_layered_declaration_extractor_regex():
     assert decl.manufacture_month == 8
     assert decl.manufacture_year == 2026
     assert decl.consumer_care_email == "care@naturefresh.in"
+

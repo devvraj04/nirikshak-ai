@@ -76,6 +76,75 @@ class DeclarationExtractor:
             except Exception as e:
                 logger.warning(f"Could not initialize Groq client: {e}")
 
+
+    
+    @staticmethod
+    def _nutrition_table_regex_fallback(text: str) -> List[Dict[str, Any]]:
+        """Extract simple nutrition rows only when their reporting basis is explicit."""
+        if not text:
+            return []
+
+        # Do not guess whether values refer to a serving or 100 g/ml.
+        basis_match = re.search(
+            r"(?i)\bper\s*(100\s*g|100\s*ml|serving|serve)\b",
+            text,
+        )
+        if not basis_match:
+            return []
+
+        basis_text = basis_match.group(1).lower().replace(" ", "")
+        value_key = "per_serving" if basis_text in {"serving", "serve"} else "per_100g"
+
+        nutrient_names = {
+            "energy": r"energy|calories|calorie",
+            "protein": r"protein",
+            "carbohydrate": r"total\s+carbohydrate|carbohydrate|carbs",
+            "total fat": r"total\s+fat|fat",
+            "sugars": r"total\s+sugars|sugars|sugar",
+            "saturated fat": r"saturated\s+fat",
+            "trans fat": r"trans\s+fat",
+            "dietary fibre": r"dietary\s+fibre|dietary\s+fiber|fibre|fiber",
+            "sodium": r"sodium",
+        }
+
+        rows: List[Dict[str, Any]] = []
+        seen = set()
+
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            for canonical_name, name_pattern in nutrient_names.items():
+                match = re.match(
+                    rf"(?i)^\s*(?:{name_pattern})\s*[:\-]?\s*"
+                    r"(\d+(?:\.\d+)?)\s*(kcal|kj|g|mg|mcg|µg)?\b",
+                    line,
+                )
+                if not match:
+                    continue
+
+                value = match.group(1)
+                unit = match.group(2) or None
+                identity = (canonical_name, value, unit, value_key)
+
+                if identity in seen:
+                    break
+                seen.add(identity)
+
+                row: Dict[str, Any] = {
+                    "nutrient": canonical_name,
+                    "per_serving": None,
+                    "per_100g": None,
+                    "unit": unit,
+                    "source_text": line,
+                }
+                row[value_key] = f"{value} {unit}".strip() if unit else value
+                rows.append(row)
+                break
+
+        return rows
+
     # =========================================================================
     # LAYER 1: REGEX EXTRACTION
     # =========================================================================
@@ -941,7 +1010,16 @@ class DeclarationExtractor:
 
         # Full verbatim text blocks
         ingredients_list = (l2_raw.get("ingredients_list") if isinstance(l2_raw, dict) else None) or l1.get("ingredients_list_regex")
-        nutrition_table = l2_raw.get("nutrition_table") if isinstance(l2_raw, dict) else None
+
+        nutrition_table = (
+            l2_raw.get("nutrition_table")
+            if isinstance(l2_raw, dict)
+            else None
+        )
+
+        if not isinstance(nutrition_table, list) or not nutrition_table:
+            nutrition_table = self._nutrition_table_regex_fallback(ocr_text)
+        
         allergen_info = (l2_raw.get("allergen_info") if isinstance(l2_raw, dict) else None) or l1.get("allergen_info_regex")
         storage_instructions = l2_raw.get("storage_instructions") if isinstance(l2_raw, dict) else None
         usage_instructions = l2_raw.get("usage_instructions") if isinstance(l2_raw, dict) else None

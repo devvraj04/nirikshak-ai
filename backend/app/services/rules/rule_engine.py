@@ -253,7 +253,11 @@ class RuleEngine:
                 rule_code = advisory.get("rule_code") or rule_code
                 penalty = advisory.get("penalty")
                 if advisory.get("reason"):
-                    reason = advisory.get("reason")
+                    advisory_reason = advisory.get("reason")
+                    if status == ComplianceStatus.FAIL and "missing" in reason.lower():
+                        reason = f"{reason}. Advisory: {advisory_reason}"
+                    else:
+                        reason = advisory_reason
                 citation = {
                     "act_name": advisory.get("act_name", rule_def.get("act_reference", "Legal Metrology (Packaged Commodities) Rules, 2011")),
                     "quote": advisory.get("legal_quote", ""),
