@@ -90,6 +90,7 @@ export interface ScanItem {
   product_category?: string;
   ingredients_list?: string;
   ingredient_analysis?: IngredientAnalysis;
+  surrogate_analysis?: SurrogateAnalysis;
   compliance_summary?: {
     passed_rules: number;
     failed_rules: number;
@@ -97,6 +98,41 @@ export interface ScanItem {
     compliance_score: number;
   };
   evaluations?: ScanEvaluation[];
+}
+
+export interface DarkPatternItem {
+  type: string;
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | string;
+  title: string;
+  detail: string;
+  legal_citation?: {
+    act?: string;
+    section?: string;
+    heading?: string;
+    text?: string;
+  };
+}
+
+export interface LegalViolationItem {
+  act: string;
+  section: string;
+  penalty_clause?: string;
+  max_penalty?: string;
+}
+
+export interface SurrogateAnalysis {
+  is_surrogate: boolean;
+  surrogate_risk_score: number;
+  risk_level: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'CLEAN' | string;
+  parent_restricted_industry?: string;
+  matched_restricted_brand?: string | null;
+  camouflaged_sku_type?: string | null;
+  surrogate_explanation: string;
+  dark_patterns?: DarkPatternItem[];
+  dark_patterns_count: number;
+  legal_violations?: LegalViolationItem[];
+  officer_action_recommendation: string;
+  consumer_plain_verdict: string;
 }
 
 export interface AnalyzedIngredient {

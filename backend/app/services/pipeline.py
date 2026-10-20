@@ -21,6 +21,7 @@ from app.services.rag.rag_pipeline import RAGPipeline
 from app.services.rules.rule_engine import RuleEngine
 from app.services.storage import StorageService
 from app.services.ingredients.ingredient_engine import ingredient_engine
+from app.services.surrogate.surrogate_engine import surrogate_engine
 
 logger = get_logger("services.pipeline")
 
@@ -263,6 +264,19 @@ class CompliancePipeline:
                 declarations.raw_extractions = {}
             declarations.raw_extractions["ingredient_analysis"] = ingredient_analysis
 
+            # 3.2 Flagship Surrogate Advertising & Dark Pattern Intelligence Engine
+            mfr = declarations.manufacturer_name or getattr(declarations, "packer_name", None) or ""
+            prod_name = declarations.generic_product_name or ""
+            brand_claims = getattr(declarations, "brand_claims", []) or []
+            surrogate_analysis = surrogate_engine.analyze_product(
+                brand_name=mfr,
+                product_name=prod_name,
+                ingredients_list=ingr_text,
+                brand_claims=brand_claims,
+                detected_text=combined_ocr_text,
+            )
+            declarations.raw_extractions["surrogate_analysis"] = surrogate_analysis
+
             # Store Declarations in Database
             decl_record = Declaration(
                 scan_id=scan.id,
@@ -455,6 +469,7 @@ class CompliancePipeline:
                     "review_rules": report.review_count,
                     "compliance_score": int((report.passed_count / max(1, (report.passed_count + report.failed_count + report.review_count))) * 100)
                 },
+                "surrogate_analysis": surrogate_analysis,
                 "evaluations": [
                     {
                         "rule_id": r.rule_id,

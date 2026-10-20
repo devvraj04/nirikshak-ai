@@ -513,6 +513,126 @@ export const ScanHistoryTab: React.FC<ScanHistoryTabProps> = ({ scans, onRefresh
                         ))}
                       </div>
                     </div>
+                  {/* Flagship USP: Surrogate Advertising & Dark Pattern Compliance Dossier */}
+                  {scan.surrogate_analysis && (
+                    <div className="dossier-section surrogate-section">
+                      <div className="section-title-row">
+                        <ShieldAlert size={16} className={scan.surrogate_analysis.is_surrogate ? "text-rose" : "text-amber"} />
+                        <h4 className="section-heading">Surrogate Advertising & Dark Pattern Intelligence (CCPA 2022 & FSSAI 2018)</h4>
+                        <span
+                          className={`badge ${
+                            scan.surrogate_analysis.risk_level === 'CRITICAL'
+                              ? 'badge-crimson'
+                              : scan.surrogate_analysis.risk_level === 'HIGH'
+                              ? 'badge-amber'
+                              : scan.surrogate_analysis.risk_level === 'MEDIUM'
+                              ? 'badge-amber'
+                              : 'badge-emerald'
+                          }`}
+                        >
+                          {scan.surrogate_analysis.risk_level} RISK ({scan.surrogate_analysis.surrogate_risk_score}%)
+                        </span>
+                      </div>
+
+                      <div className="surrogate-card">
+                        {scan.surrogate_analysis.is_surrogate ? (
+                          <div className="surrogate-alert-banner critical">
+                            <div className="alert-badge">SURROGATE DETECTED</div>
+                            <div className="alert-content">
+                              <h5 className="alert-title">
+                                Illegal Surrogate Brand Extension Detected ({scan.surrogate_analysis.matched_restricted_brand})
+                              </h5>
+                              <p className="alert-desc">
+                                {scan.surrogate_analysis.surrogate_explanation}
+                              </p>
+                              {scan.surrogate_analysis.parent_restricted_industry && (
+                                <div className="category-tag-row">
+                                  <span className="cat-tag">Parent Category: <strong>{scan.surrogate_analysis.parent_restricted_industry.replace(/_/g, ' ')}</strong></span>
+                                  {scan.surrogate_analysis.camouflaged_sku_type && (
+                                    <span className="cat-tag">Camouflage Vehicle: <strong>{scan.surrogate_analysis.camouflaged_sku_type}</strong></span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`surrogate-alert-banner ${scan.surrogate_analysis.surrogate_risk_score > 30 ? 'warning' : 'clean'}`}>
+                            <div className="alert-content">
+                              <h5 className="alert-title">
+                                {scan.surrogate_analysis.surrogate_risk_score > 30
+                                  ? 'Potential Deceptive Marketing / Dark Pattern Flags'
+                                  : 'Surrogate Advertising & Dark Pattern Check Passed'}
+                              </h5>
+                              <p className="alert-desc">
+                                {scan.surrogate_analysis.consumer_plain_verdict}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Dark Patterns List */}
+                        {scan.surrogate_analysis.dark_patterns && scan.surrogate_analysis.dark_patterns.length > 0 && (
+                          <div className="dark-patterns-box">
+                            <span className="box-subtitle">Detected Packaging Dark Patterns ({scan.surrogate_analysis.dark_patterns.length}):</span>
+                            <div className="patterns-grid">
+                              {scan.surrogate_analysis.dark_patterns.map((dp, pIdx) => (
+                                <div key={pIdx} className={`pattern-item severity-${dp.severity.toLowerCase()}`}>
+                                  <div className="pattern-header">
+                                    <span className="pattern-name">{dp.title}</span>
+                                    <span className={`pattern-tag tag-${dp.severity.toLowerCase()}`}>{dp.severity}</span>
+                                  </div>
+                                  <p className="pattern-detail">{dp.detail}</p>
+                                  {dp.legal_citation && (
+                                    <span className="pattern-citation font-mono">
+                                      Violates: {dp.legal_citation.act || 'CCPA 2022'} ({dp.legal_citation.section || 'Sec 8'})
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Statutory Legal Violations & Penalties */}
+                        {scan.surrogate_analysis.legal_violations && scan.surrogate_analysis.legal_violations.length > 0 && (
+                          <div className="violations-legal-box">
+                            <span className="box-subtitle">Statutory Legal Violations & Penalty Liabilities:</span>
+                            <div className="legal-table">
+                              {scan.surrogate_analysis.legal_violations.map((lv, lIdx) => (
+                                <div key={lIdx} className="legal-row font-mono">
+                                  <div className="legal-act-col">
+                                    <strong>{lv.act}</strong>
+                                    <span className="legal-sec">{lv.section}</span>
+                                  </div>
+                                  <div className="legal-penalty-col">
+                                    <span className="penalty-label">Penalty Liability:</span>
+                                    <span className="penalty-val">{lv.max_penalty || lv.penalty_clause}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Officer Action Recommendation */}
+                        {scan.surrogate_analysis.officer_action_recommendation && (
+                          <div className="officer-recommendation-callout">
+                            <span className="callout-label">Recommended Enforcement Protocol:</span>
+                            <p className="callout-text">{scan.surrogate_analysis.officer_action_recommendation}</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const note = `[Surrogate/Dark Pattern Flag]: ${scan.surrogate_analysis?.officer_action_recommendation || ''}`;
+                                setReviewNotes({ ...reviewNotes, [scan.scan_id]: note });
+                              }}
+                              className="copy-to-notes-btn font-mono"
+                            >
+                              <Copy size={11} /> Auto-fill into Resolution Notes
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )}
 
                   {/* Officer Action Bar */}
@@ -1433,6 +1553,248 @@ export const ScanHistoryTab: React.FC<ScanHistoryTabProps> = ({ scans, onRefresh
           padding: 2px 6px;
           border-radius: 6px;
           font-weight: 800;
+        }
+
+        .surrogate-section {
+          margin-top: 14px;
+        }
+
+        .text-rose {
+          color: #e11d48;
+        }
+
+        .text-amber {
+          color: #d97706;
+        }
+
+        .surrogate-card {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 16px;
+        }
+
+        .surrogate-alert-banner {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 14px 16px;
+          border-radius: 10px;
+        }
+
+        .surrogate-alert-banner.critical {
+          background: #fff1f2;
+          border: 1px solid #fecdd3;
+        }
+
+        .surrogate-alert-banner.warning {
+          background: #fffbeb;
+          border: 1px solid #fde68a;
+        }
+
+        .surrogate-alert-banner.clean {
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+        }
+
+        .alert-badge {
+          align-self: flex-start;
+          font-size: 0.68rem;
+          font-weight: 800;
+          letter-spacing: 0.05em;
+          padding: 2px 8px;
+          border-radius: 4px;
+          background: #e11d48;
+          color: #ffffff;
+        }
+
+        .alert-title {
+          font-size: 0.95rem;
+          font-weight: 800;
+          color: #0f172a;
+          margin: 0;
+        }
+
+        .alert-desc {
+          font-size: 0.8rem;
+          color: #334155;
+          line-height: 1.45;
+          margin-top: 3px;
+        }
+
+        .category-tag-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 6px;
+        }
+
+        .cat-tag {
+          font-size: 0.72rem;
+          background: #ffffff;
+          padding: 3px 8px;
+          border-radius: 6px;
+          border: 1px solid #cbd5e1;
+          color: #475569;
+        }
+
+        .box-subtitle {
+          font-size: 0.75rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #64748b;
+          margin-bottom: 6px;
+          display: block;
+        }
+
+        .patterns-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+
+        .pattern-item {
+          padding: 10px 12px;
+          border-radius: 8px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+        }
+
+        .pattern-item.severity-critical {
+          border-left: 3px solid #e11d48;
+        }
+
+        .pattern-item.severity-high {
+          border-left: 3px solid #ea580c;
+        }
+
+        .pattern-item.severity-medium {
+          border-left: 3px solid #d97706;
+        }
+
+        .pattern-item.severity-low {
+          border-left: 3px solid #3b82f6;
+        }
+
+        .pattern-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 4px;
+        }
+
+        .pattern-name {
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: #0f172a;
+        }
+
+        .pattern-tag {
+          font-size: 0.65rem;
+          font-weight: 800;
+          padding: 1px 6px;
+          border-radius: 4px;
+        }
+
+        .tag-critical { background: #fee2e2; color: #dc2626; }
+        .tag-high { background: #ffedd5; color: #c2410c; }
+        .tag-medium { background: #fef3c7; color: #b45309; }
+        .tag-low { background: #dbeafe; color: #1d4ed8; }
+
+        .pattern-detail {
+          font-size: 0.78rem;
+          color: #475569;
+          line-height: 1.4;
+          margin-bottom: 4px;
+        }
+
+        .pattern-citation {
+          font-size: 0.7rem;
+          color: #059669;
+          font-weight: 600;
+          display: block;
+        }
+
+        .legal-table {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .legal-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 12px;
+          background: #f1f5f9;
+          border-radius: 6px;
+          font-size: 0.72rem;
+        }
+
+        .legal-act-col {
+          display: flex;
+          flex-direction: column;
+          color: #1e293b;
+        }
+
+        .legal-sec {
+          color: #64748b;
+          font-size: 0.68rem;
+        }
+
+        .legal-penalty-col {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+        }
+
+        .penalty-label {
+          color: #94a3b8;
+          font-size: 0.65rem;
+        }
+
+        .penalty-val {
+          color: #dc2626;
+          font-weight: 700;
+        }
+
+        .officer-recommendation-callout {
+          padding: 10px 14px;
+          background: #eff6ff;
+          border: 1px dashed #93c5fd;
+          border-radius: 8px;
+        }
+
+        .callout-label {
+          font-size: 0.72rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          color: #1d4ed8;
+          display: block;
+        }
+
+        .callout-text {
+          font-size: 0.8rem;
+          color: #1e3a8a;
+          margin: 3px 0 8px 0;
+          line-height: 1.4;
+        }
+
+        .copy-to-notes-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 0.7rem;
+          color: #1d4ed8;
+          background: #dbeafe;
+          border: 1px solid #bfdbfe;
+          border-radius: 4px;
+          padding: 4px 8px;
+          cursor: pointer;
         }
       `}</style>
     </div>

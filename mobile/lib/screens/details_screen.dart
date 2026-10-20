@@ -482,6 +482,14 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
         const SizedBox(height: 20),
 
+        // 4E. FLAGSHIP USP: SURROGATE ADVERTISING & DARK PATTERNS AUDIT
+        _buildSurrogateAuditCard(
+          item: Map<String, dynamic>.from(item),
+          declarations: Map<String, dynamic>.from(declarations),
+        ),
+
+        const SizedBox(height: 20),
+
         // 5. EXTRACTED FACTS TABLE
         _buildExtractedFactsTable(
           mfgName: mfgName,
@@ -502,6 +510,328 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           item: Map<String, dynamic>.from(item),
         ),
       ],
+    );
+  }
+
+  // --- 4E. Flagship USP: Surrogate Advertising & Dark Pattern Audit Card ---
+  Widget _buildSurrogateAuditCard({
+    required Map<String, dynamic> item,
+    required Map<String, dynamic> declarations,
+  }) {
+    final surrogateData = item['surrogate_analysis'] ??
+        declarations['surrogate_analysis'] ??
+        _ocrDetails?['surrogate_analysis'];
+
+    if (surrogateData == null || surrogateData is! Map) {
+      return const SizedBox.shrink();
+    }
+
+    final bool isSurrogate = surrogateData['is_surrogate'] == true;
+    final int riskScore = (surrogateData['surrogate_risk_score'] as num?)?.toInt() ?? 0;
+    final String riskLevel = (surrogateData['risk_level'] ?? 'CLEAN').toString();
+    final String? matchedBrand = surrogateData['matched_restricted_brand']?.toString();
+    final String? parentIndustry = surrogateData['parent_restricted_industry']?.toString();
+    final String? camouflageType = surrogateData['camouflaged_sku_type']?.toString();
+    final String explanation = surrogateData['surrogate_explanation']?.toString() ?? '';
+    final String consumerVerdict = surrogateData['consumer_plain_verdict']?.toString() ?? '';
+    final List darkPatterns = (surrogateData['dark_patterns'] as List?) ?? [];
+    final List legalViolations = (surrogateData['legal_violations'] as List?) ?? [];
+
+    final Color primaryColor = isSurrogate
+        ? const Color(0xFFE11D48)
+        : (riskScore >= 50 ? Colors.amber.shade800 : AppTheme.emerald600);
+    final Color bgColor = isSurrogate
+        ? const Color(0xFFFFF1F2)
+        : (riskScore >= 50 ? const Color(0xFFFFFBEB) : const Color(0xFFF0FDF4));
+    final Color borderColor = isSurrogate
+        ? const Color(0xFFFECDD3)
+        : (riskScore >= 50 ? const Color(0xFFFDE68A) : const Color(0xFFBBF7D0));
+
+    return GlassCard(
+      borderRadius: 18,
+      padding: const EdgeInsets.all(16),
+      border: Border.all(color: borderColor, width: 1.5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isSurrogate ? Icons.shield_rounded : Icons.verified_user_rounded,
+                      color: primaryColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'SURROGATE AD & DARK PATTERNS',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                          color: AppTheme.slate500,
+                        ),
+                      ),
+                      Text(
+                        'CCPA 2022 & FSSAI 2018 Audit',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.slate900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$riskLevel ($riskScore%)',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isSurrogate) ...[
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE11D48),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'SURROGATE DETECTED',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Parent Brand: ${matchedBrand ?? "Restricted Brand"}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF881337),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                Text(
+                  isSurrogate ? explanation : consumerVerdict,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.45,
+                    color: isSurrogate ? const Color(0xFF4C0519) : AppTheme.slate800,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (parentIndustry != null && parentIndustry != 'NONE') ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppTheme.slate200),
+                        ),
+                        child: Text(
+                          'Industry: ${parentIndustry.replaceAll('_', ' ')}',
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.slate700),
+                        ),
+                      ),
+                      if (camouflageType != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppTheme.slate200),
+                          ),
+                          child: Text(
+                            'Vehicle: $camouflageType',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.slate700),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (darkPatterns.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.amber),
+                const SizedBox(width: 6),
+                Text(
+                  'DETECTED PACKAGING DARK PATTERNS (${darkPatterns.length})',
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    color: AppTheme.slate600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...darkPatterns.map((dp) {
+              if (dp is! Map) return const SizedBox.shrink();
+              final title = (dp['title'] ?? 'Deceptive Claim').toString();
+              final detail = (dp['detail'] ?? '').toString();
+              final severity = (dp['severity'] ?? 'MED').toString();
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.slate200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.slate900,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: severity == 'CRITICAL' ? Colors.red.shade50 : Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            severity,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: severity == 'CRITICAL' ? Colors.red.shade900 : Colors.amber.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (detail.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        detail,
+                        style: const TextStyle(fontSize: 11, color: AppTheme.slate600, height: 1.35),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ],
+          if (legalViolations.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppTheme.slate50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.slate200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'STATUTORY LEGAL SECTIONS CITED',
+                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppTheme.slate500),
+                  ),
+                  const SizedBox(height: 6),
+                  ...legalViolations.take(2).map((lv) {
+                    if (lv is! Map) return const SizedBox.shrink();
+                    final act = (lv['act'] ?? '').toString();
+                    final sec = (lv['section'] ?? '').toString();
+                    final penalty = (lv['max_penalty'] ?? lv['penalty_clause'] ?? '').toString();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.gavel_rounded, size: 13, color: AppTheme.slate600),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(fontSize: 10.5, color: AppTheme.slate800),
+                                children: [
+                                  TextSpan(text: '$sec of $act: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  TextSpan(text: penalty, style: const TextStyle(color: Color(0xFFE11D48), fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

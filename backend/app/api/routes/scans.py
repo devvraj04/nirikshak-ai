@@ -17,6 +17,7 @@ from app.services.pipeline import CompliancePipeline
 from app.services.storage import StorageService
 from app.services.rag.violation_analyzer import LegalViolationAnalyzer
 from app.services.ingredients.ingredient_engine import ingredient_engine
+from app.services.surrogate.surrogate_engine import surrogate_engine
 
 router = APIRouter(prefix="/scans", tags=["Product Scans"])
 
@@ -26,6 +27,27 @@ violation_analyzer = LegalViolationAnalyzer()
 
 class IngredientAnalyzeRequest(BaseModel):
     ingredients_text: str
+
+class SurrogateAnalyzeRequest(BaseModel):
+    brand_name: str
+    product_name: str
+    ingredients_text: Optional[str] = ""
+    brand_claims: Optional[List[Dict[str, Any]]] = None
+    detected_text: Optional[str] = ""
+
+
+@router.post("/analyze-surrogate")
+async def analyze_surrogate_endpoint(req: SurrogateAnalyzeRequest) -> Dict[str, Any]:
+    """
+    On-demand analysis for surrogate advertising, brand extension camouflage, and packaging dark patterns.
+    """
+    return surrogate_engine.analyze_product(
+        brand_name=req.brand_name,
+        product_name=req.product_name,
+        ingredients_list=req.ingredients_text or "",
+        brand_claims=req.brand_claims or [],
+        detected_text=req.detected_text or "",
+    )
 
 
 @router.post("", status_code=201)
@@ -167,6 +189,13 @@ async def get_scan_details(
         "declarations_table": raw_decl.get("declarations_table", []),
         "ingredients_list": raw_decl.get("ingredients_list"),
         "ingredient_analysis": raw_decl.get("ingredient_analysis") or (ingredient_engine.analyze_full_product(raw_decl.get("ingredients_list") or "") if raw_decl.get("ingredients_list") else None),
+        "surrogate_analysis": raw_decl.get("surrogate_analysis") or surrogate_engine.analyze_product(
+            brand_name=decl_row.manufacturer_name or decl_row.packer_name or (raw_decl.get("brand_claims", [{}])[0].get("context", "") if raw_decl.get("brand_claims") else "") or "",
+            product_name=decl_row.generic_product_name or "",
+            ingredients_list=raw_decl.get("ingredients_list") or "",
+            brand_claims=raw_decl.get("brand_claims") or [],
+            detected_text=all_detected_text or "",
+        ),
         "nutrition_table": raw_decl.get("nutrition_table"),
         "allergen_info": raw_decl.get("allergen_info"),
         "storage_instructions": raw_decl.get("storage_instructions"),
@@ -248,6 +277,13 @@ async def get_scan_ocr(
         "declarations_table": raw_decl.get("declarations_table", []),
         "ingredients_list": raw_decl.get("ingredients_list"),
         "ingredient_analysis": raw_decl.get("ingredient_analysis") or (ingredient_engine.analyze_full_product(raw_decl.get("ingredients_list") or "") if raw_decl.get("ingredients_list") else None),
+        "surrogate_analysis": raw_decl.get("surrogate_analysis") or surrogate_engine.analyze_product(
+            brand_name=decl_row.manufacturer_name or decl_row.packer_name or (raw_decl.get("brand_claims", [{}])[0].get("context", "") if raw_decl.get("brand_claims") else "") or "",
+            product_name=decl_row.generic_product_name or "",
+            ingredients_list=raw_decl.get("ingredients_list") or "",
+            brand_claims=raw_decl.get("brand_claims") or [],
+            detected_text=all_detected_text or "",
+        ),
         "nutrition_table": raw_decl.get("nutrition_table"),
         "allergen_info": raw_decl.get("allergen_info"),
         "storage_instructions": raw_decl.get("storage_instructions"),
