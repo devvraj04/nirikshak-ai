@@ -5,6 +5,7 @@ NIRIKSHAK AI - Product Scan API Routes.
 import os
 import uuid
 from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.models import Declaration, OCRResult, Scan
 from app.models.enums import ScanStatus
+from app.services.nutrition_audit import audit_nutrition_table
 from app.services.pipeline import CompliancePipeline
 from app.services.storage import StorageService
 from app.services.rag.violation_analyzer import LegalViolationAnalyzer
@@ -130,6 +132,7 @@ async def process_scan_endpoint(
 
 @router.get("/{scan_id}")
 async def get_scan_details(
+
     scan_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -151,6 +154,12 @@ async def get_scan_details(
     decl_row = decl_res.scalars().first()
     raw_decl = decl_row.raw_declarations or {} if decl_row else {}
 
+    nutrition_rows = raw_decl.get("nutrition_table") or []
+
+    nutrition_audit = audit_nutrition_table(
+        nutrition_rows if isinstance(nutrition_rows, list) else []
+    )
+
     return {
         "scan_id": str(scan.id),
         "status": scan.status.value,
@@ -168,6 +177,7 @@ async def get_scan_details(
         "ingredients_list": raw_decl.get("ingredients_list"),
         "ingredient_analysis": raw_decl.get("ingredient_analysis") or (ingredient_engine.analyze_full_product(raw_decl.get("ingredients_list") or "") if raw_decl.get("ingredients_list") else None),
         "nutrition_table": raw_decl.get("nutrition_table"),
+        "nutrition_audit": nutrition_audit,
         "allergen_info": raw_decl.get("allergen_info"),
         "storage_instructions": raw_decl.get("storage_instructions"),
         "usage_instructions": raw_decl.get("usage_instructions"),

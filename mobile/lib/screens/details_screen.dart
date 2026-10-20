@@ -33,6 +33,10 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   String _selectedOcrSide = 'front';
   Map<String, dynamic>? _ocrDetails;
   bool _loadingOcr = false;
+
+  Map<String, dynamic>? _nutritionAudit;
+  bool _loadingNutritionAudit = false;
+
   bool _rawOcrViewMode = false;
   bool _showOcrBoundingBoxes = true;
   int? _selectedBoxIndex;
@@ -75,6 +79,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   void initState() {
     super.initState();
     _fetchScanOcr();
+    _fetchNutritionAudit();
   }
 
   Future<void> _fetchScanOcr() async {
@@ -93,6 +98,35 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       if (mounted) {
         setState(() => _loadingOcr = false);
       }
+    }
+  }
+
+    Future<void> _fetchNutritionAudit() async {
+    final scanId =
+        (widget.item['scan_id'] ?? widget.item['id'] ?? '').toString();
+
+    if (scanId.isEmpty) return;
+
+    setState(() => _loadingNutritionAudit = true);
+
+    try {
+      final details = await _apiClient.getScanDetails(scanId);
+
+      if (!mounted) return;
+
+      setState(() {
+        final audit = details['nutrition_audit'];
+        _nutritionAudit = audit is Map
+            ? Map<String, dynamic>.from(audit)
+            : null;
+        _loadingNutritionAudit = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loadingNutritionAudit = false;
+      });
     }
   }
 
@@ -496,6 +530,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
         const SizedBox(height: 20),
 
+
         // 5B. FULL CONTENT SECTIONS (Ingredients, Nutrition, Allergen, Storage, etc.)
         _buildFullContentSections(
           declarations: Map<String, dynamic>.from(declarations),
@@ -504,6 +539,202 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       ],
     );
   }
+
+  
+        
+Widget _buildNutritionAuditCard() {
+  final audit = _nutritionAudit;
+
+  if (_loadingNutritionAudit) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      child: Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  if (audit == null) {
+    return const SizedBox.shrink();
+  }
+
+  final status = (audit['status'] ?? 'inconclusive').toString();
+  final declared = audit['declared_energy_kcal'];
+  final calculated = audit['calculated_energy_kcal'];
+  final difference = audit['difference_kcal'];
+  final nutrients = audit['nutrients_used_g'] is Map
+      ? Map<String, dynamic>.from(audit['nutrients_used_g'])
+      : <String, dynamic>{};
+
+  final isWithin = status == 'within_screening_tolerance';
+  final needsReview = status == 'review_required';
+
+  final Color accent = isWithin
+      ? const Color(0xFF15803D)
+      : needsReview
+          ? const Color(0xFFB45309)
+          : const Color(0xFF64748B);
+
+  String formatValue(dynamic value) {
+    if (value is num) return value.toStringAsFixed(1);
+    return value?.toString() ?? 'Unavailable';
+  }
+
+  Widget metric(String label, String value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accent.withValues(alpha: 0.14)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.slate600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.slate900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  return Container(
+    margin: const EdgeInsets.only(top: 12, bottom: 8),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.88),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: accent.withValues(alpha: 0.25)),
+      boxShadow: [
+        BoxShadow(
+          color: accent.withValues(alpha: 0.06),
+          blurRadius: 18,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.fact_check_rounded, color: accent, size: 22),
+            const SizedBox(width: 9),
+            const Expanded(
+              child: Text(
+                'ENERGY CONSISTENCY CHECK',
+                style: TextStyle(
+                  fontSize: 12,
+                  letterSpacing: 0.7,
+                  fontWeight: FontWeight.w900,
+                  color: AppTheme.slate900,
+                ),
+              ),
+            ),
+            Icon(
+              isWithin
+                  ? Icons.check_circle_rounded
+                  : needsReview
+                      ? Icons.warning_amber_rounded
+                      : Icons.info_outline_rounded,
+              color: accent,
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.09),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            isWithin
+                ? 'Within screening tolerance'
+                : needsReview
+                    ? 'Further review recommended'
+                    : 'Unable to conclude',
+            style: TextStyle(
+              color: accent,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            metric('Declared energy', '${formatValue(declared)} kcal'),
+            const SizedBox(width: 10),
+            metric('Estimated energy', '${formatValue(calculated)} kcal'),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Difference: ${formatValue(difference)} kcal',
+          style: const TextStyle(
+            color: AppTheme.slate700,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+          ),
+        ),
+        if (nutrients.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'MACRONUTRIENTS USED',
+            style: TextStyle(
+              fontSize: 10,
+              letterSpacing: 0.8,
+              fontWeight: FontWeight.w900,
+              color: AppTheme.slate600,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: nutrients.entries.map((entry) {
+              return Chip(
+                label: Text(
+                  '${entry.key}: ${formatValue(entry.value)} g',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                visualDensity: VisualDensity.compact,
+              );
+            }).toList(),
+          ),
+        ],
+        const SizedBox(height: 12),
+        Text(
+          (audit['warning'] ??
+                  'Screening estimate only; verify the source label and units.')
+              .toString(),
+          style: const TextStyle(
+            color: AppTheme.slate600,
+            fontSize: 11,
+            height: 1.45,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 
   // --- 1. Scanned Evidence Section ---
   Widget _buildScannedEvidenceSection(BuildContext context, Map imageUrls) {
@@ -2786,6 +3017,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         ),
       ),
     );
+
+    sections.add(_buildNutritionAuditCard());
 
     // --- Ingredients List ---
     if (ingredientsList != null) {
