@@ -1,3 +1,5 @@
+name: nirikshak-vit
+
 services:
   # ============================================
   # PostgreSQL - Primary Relational Database
@@ -57,7 +59,7 @@ services:
   # MinIO - Object Storage (S3-compatible)
   # ============================================
   minio:
-    image: quay.io/minio/minio:latest
+    image: minio/minio:latest
     container_name: nirikshak-minio-vit
     restart: unless-stopped
     command: server /data --console-address ":9001"
@@ -82,6 +84,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: nirikshak-vit-backend:latest
     container_name: nirikshak-backend-vit
     restart: unless-stopped
     env_file:
@@ -107,6 +110,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: nirikshak-vit-worker:latest
     container_name: nirikshak-worker-vit
     restart: unless-stopped
     env_file:
