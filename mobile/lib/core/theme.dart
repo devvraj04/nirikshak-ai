@@ -14,6 +14,7 @@ class AppTheme {
   static const Color slate300 = Color(0xFFCBD5E1);       // Light borders / dots
   static const Color slate200 = Color(0xFFE2E8F0);       // Light borders
   static const Color slate100 = Color(0xFFF1F5F9);       // Pill backgrounds
+  static const Color slate50 = Color(0xFFF8FAFC);        // Very light slate background
   static const Color textMain = Color(0xFF1A202C);       // Primary dark text
 
   // Accent Colors

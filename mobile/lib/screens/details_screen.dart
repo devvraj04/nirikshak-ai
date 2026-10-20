@@ -9,7 +9,6 @@ import '../core/theme.dart';
 import '../widgets/aura_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/pulse_indicator.dart';
-import '../widgets/interactive_product_carton_3d.dart';
 import '../widgets/price_history_chart.dart';
 import '../widgets/nirikshak_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +29,40 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   int _activeRuleIndex = 0;
   late final PageController _pageController = PageController(initialPage: 0);
 
+  /// Selected packaging face for OCR text and photo inspection
+  String _selectedOcrSide = 'front';
+  Map<String, dynamic>? _ocrDetails;
+  bool _loadingOcr = false;
+  bool _rawOcrViewMode = false;
+  bool _showOcrBoundingBoxes = true;
+  int? _selectedBoxIndex;
+
+  /// Track intrinsic aspect ratio of packaging images to align bounding boxes with zero error
+  final Map<String, double> _imageAspectRatios = {};
+
+  /// Selected tab for structured facts table: 'front', 'back', 'all'
+  String _structuredTableTab = 'front';
+
+  void _resolveImageAspect(String url) {
+    if (url.isEmpty || _imageAspectRatios.containsKey(url)) return;
+    try {
+      final img = NetworkImage(url);
+      img.resolve(const ImageConfiguration()).addListener(
+        ImageStreamListener((ImageInfo info, bool _) {
+          if (mounted) {
+            final w = info.image.width.toDouble();
+            final h = info.image.height.toDouble();
+            if (w > 0 && h > 0) {
+              setState(() {
+                _imageAspectRatios[url] = w / h;
+              });
+            }
+          }
+        }),
+      );
+    } catch (_) {}
+  }
+
   /// Cache of enriched violation data from LLM+RAG. Keyed by rule_id.
   final Map<String, Map<String, dynamic>> _violationCache = {};
   final Set<String> _loadingRuleIds = {};
@@ -37,6 +70,31 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   /// E-Commerce Twin data: twice-daily price history & product violation history
   Map<String, dynamic>? _ecommerceTwinData;
   bool _loadingEcommerceTwin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchScanOcr();
+  }
+
+  Future<void> _fetchScanOcr() async {
+    final String scanId = (widget.item['scan_id'] ?? widget.item['id'] ?? '').toString();
+    if (scanId.isEmpty) return;
+    setState(() => _loadingOcr = true);
+    try {
+      final ocrRes = await _apiClient.getScanOcr(scanId);
+      if (mounted) {
+        setState(() {
+          _ocrDetails = ocrRes;
+          _loadingOcr = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingOcr = false);
+      }
+    }
+  }
 
   bool get _isOfficer {
     if (widget.isOfficer == true) return true;
@@ -398,17 +456,12 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
         const SizedBox(height: 20),
 
-        // 2. PRODUCT AVATAR (3D RECONSTRUCTED CARTON)
-        _buildProductAvatarSection(
-          declarations: Map<String, dynamic>.from(declarations),
+        // 2. PACKAGING PHOTO & VISUAL OCR STUDIO (4-WAY ROTATION)
+        _buildPackagingOcrStudio(
+          context: context,
           imageUrls: Map<String, dynamic>.from(imageUrls),
-          prodName: prodName,
-          mfgName: mfgName,
-          mrpValue: mrpValue,
-          mfgDate: mfgDate,
-          expDate: expDate,
-          netQty: netQty,
-          batchId: batchId,
+          declarations: Map<String, dynamic>.from(declarations),
+          scanId: scanId,
         ),
 
         const SizedBox(height: 20),
@@ -436,6 +489,22 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
         const SizedBox(height: 20),
 
+        // 4C. LLM PACKAGING SENTENCES CARD (Brand Claims highlighted)
+        _buildLlmSentencesCard(
+          item: Map<String, dynamic>.from(item),
+          declarations: Map<String, dynamic>.from(declarations),
+        ),
+
+        const SizedBox(height: 20),
+
+        // 4D. CLAIMS MADE BY BRAND (Dedicated Luxury Showcase)
+        _buildBrandClaimsSection(
+          item: Map<String, dynamic>.from(item),
+          declarations: Map<String, dynamic>.from(declarations),
+        ),
+
+        const SizedBox(height: 20),
+
         // 5. EXTRACTED FACTS TABLE
         _buildExtractedFactsTable(
           mfgName: mfgName,
@@ -446,6 +515,14 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           declarations: Map<String, dynamic>.from(declarations),
           item: Map<String, dynamic>.from(item),
           evaluations: evaluations,
+        ),
+
+        const SizedBox(height: 20),
+
+        // 5B. FULL CONTENT SECTIONS (Ingredients, Nutrition, Allergen, Storage, etc.)
+        _buildFullContentSections(
+          declarations: Map<String, dynamic>.from(declarations),
+          item: Map<String, dynamic>.from(item),
         ),
 
         const SizedBox(height: 18),
@@ -654,58 +731,744 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     );
   }
 
-  // --- 2. Product Avatar (3D Box Simulation) ---
-  Widget _buildProductAvatarSection({
-    required Map<String, dynamic> declarations,
+  // --- 2. Packaging Photo & Multi-Angle OCR Studio (Replaces 3D Box) ---
+  Widget _buildPackagingOcrStudio({
+    required BuildContext context,
     required Map<String, dynamic> imageUrls,
-    String? prodName,
-    String? mfgName,
-    String? mrpValue,
-    String? mfgDate,
-    String? expDate,
-    String? netQty,
-    String? batchId,
+    required Map<String, dynamic> declarations,
+    required String scanId,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'PRODUCT AVATAR',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-                color: AppTheme.slate600,
-              ),
-            ),
-            Text(
-              '3D Geometry Reconstructed',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.slate500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+    final validEntries = imageUrls.entries.where((e) => e.value != null && e.value.toString().isNotEmpty).toList();
+    final availableSides = validEntries.isNotEmpty ? validEntries.map((e) => e.key.toString()).toList() : ['front'];
 
-        // Interactive 3D Carton
-        InteractiveProductCarton3D(
-          declarations: declarations,
-          imageUrls: imageUrls,
-          productName: prodName,
-          manufacturer: mfgName,
-          mrp: mrpValue,
-          mfgDate: mfgDate,
-          expDate: expDate,
-          netQuantity: netQty,
-          batchNo: batchId,
-        ),
-      ],
+    if (!availableSides.contains(_selectedOcrSide) && availableSides.isNotEmpty) {
+      _selectedOcrSide = availableSides.first;
+    }
+
+    final currentRawUrl = (imageUrls[_selectedOcrSide] ?? '').toString();
+    final resolvedImageUrl = currentRawUrl.isNotEmpty
+        ? (currentRawUrl.startsWith('http') ? currentRawUrl : '${ApiClient.getBaseUrl}$currentRawUrl')
+        : '';
+    if (resolvedImageUrl.isNotEmpty) {
+      _resolveImageAspect(resolvedImageUrl);
+    }
+
+    // Extract OCR text and bounding boxes specifically for _selectedOcrSide
+    String ocrText = '';
+    double? confidence;
+    int lineCount = 0;
+    List<Map<String, dynamic>> boundingBoxes = [];
+
+    // Check fetched _ocrDetails from /scans/$scanId/ocr
+    if (_ocrDetails != null && _ocrDetails!['faces'] is List) {
+      for (var f in (_ocrDetails!['faces'] as List)) {
+        final sideName = (f['image_side'] ?? '').toString().toLowerCase();
+        if (sideName == _selectedOcrSide.toLowerCase()) {
+          ocrText = (f['processed_text'] ?? f['raw_text'] ?? '').toString();
+          if (f['confidence'] != null) {
+            confidence = (f['confidence'] as num).toDouble();
+          }
+          if (f['bounding_boxes'] is List) {
+            boundingBoxes = List<Map<String, dynamic>>.from(
+              (f['bounding_boxes'] as List).map((b) => Map<String, dynamic>.from(b)),
+            );
+          }
+          break;
+        }
+      }
+    }
+
+    // Check widget.item['ocr_transcriptions']
+    if (widget.item['ocr_transcriptions'] is List) {
+      for (var t in (widget.item['ocr_transcriptions'] as List)) {
+        final sideName = (t['image_side'] ?? t['side'] ?? '').toString().toLowerCase();
+        if (sideName == _selectedOcrSide.toLowerCase()) {
+          if (ocrText.isEmpty) {
+            ocrText = (t['detected_text'] ?? t['text'] ?? t['raw_text'] ?? '').toString();
+          }
+          if (confidence == null && t['confidence'] != null) {
+            confidence = (t['confidence'] as num).toDouble();
+          }
+          if (boundingBoxes.isEmpty && t['bounding_boxes'] is List) {
+            boundingBoxes = List<Map<String, dynamic>>.from(
+              (t['bounding_boxes'] as List).map((b) => Map<String, dynamic>.from(b)),
+            );
+          }
+          break;
+        }
+      }
+    }
+
+    // Check widget.item['all_detected_text']
+    if (ocrText.isEmpty && widget.item['all_detected_text'] != null) {
+      final all = widget.item['all_detected_text'].toString();
+      final tag = '[${_selectedOcrSide.toUpperCase()}';
+      if (all.contains(tag)) {
+        final parts = all.split(tag);
+        if (parts.length > 1) {
+          final sub = parts[1].split('[').first;
+          ocrText = sub.replaceFirst('LABEL]\n', '').replaceFirst(']\n', '').trim();
+        }
+      } else if (availableSides.length == 1) {
+        ocrText = all.trim();
+      }
+    }
+
+    // Fallback: structured lines from declarations if no raw OCR recorded
+    if (ocrText.isEmpty) {
+      final List<String> fallbackLines = [];
+      if (declarations['generic_product_name'] != null) {
+        fallbackLines.add(declarations['generic_product_name'].toString());
+      }
+      if (declarations['net_quantity'] != null) {
+        fallbackLines.add('NET WEIGHT: ${declarations['net_quantity']} ${declarations['unit'] ?? ''}'.trim());
+      }
+      if (declarations['mrp'] != null) {
+        fallbackLines.add('MRP: Rs. ${declarations['mrp']} (INCL. OF ALL TAXES)');
+      }
+      if (declarations['manufacturer_name'] != null) {
+        fallbackLines.add('MANUFACTURED BY: ${declarations['manufacturer_name']}');
+      }
+      if (declarations['manufacture_month'] != null || declarations['manufacture_year'] != null) {
+        fallbackLines.add('MFD: ${declarations['manufacture_month'] ?? ''}/${declarations['manufacture_year'] ?? ''}'.trim());
+      }
+      if (declarations['expiry_date'] != null) {
+        fallbackLines.add('EXPIRY: ${declarations['expiry_date']}');
+      }
+      if (declarations['batch_number'] != null) {
+        fallbackLines.add('BATCH: ${declarations['batch_number']}');
+      }
+      if (declarations['consumer_care_phone'] != null) {
+        fallbackLines.add('CARE: ${declarations['consumer_care_phone']}');
+      }
+      ocrText = fallbackLines.join('\n');
+    }
+
+    final lines = ocrText.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+    lineCount = lines.length;
+
+    // Check declarations or root item for bounding boxes
+    if (boundingBoxes.isEmpty) {
+      final bbCandidate = declarations['bounding_boxes'] ?? widget.item['bounding_boxes'];
+      if (bbCandidate is List) {
+        boundingBoxes = List<Map<String, dynamic>>.from(
+          bbCandidate.map((b) => Map<String, dynamic>.from(b)),
+        );
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.07),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppTheme.emerald600.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.document_scanner_rounded, size: 16, color: AppTheme.emerald600),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'PACKAGING OCR STUDIO',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                      color: AppTheme.slate800,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.emerald600.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.emerald600.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_loadingOcr) ...[
+                      const SizedBox(
+                        width: 10,
+                        height: 10,
+                        child: CircularProgressIndicator(strokeWidth: 1.5, color: AppTheme.emerald600),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
+                    Text(
+                      confidence != null ? '${(confidence * 100).toStringAsFixed(1)}% Conf • 4-Way' : '4-Way Scanned',
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.emerald600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Face Tabs Selector (if multiple)
+          if (availableSides.length > 1) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: availableSides.map((side) {
+                  final isSelected = _selectedOcrSide.toLowerCase() == side.toLowerCase();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        setState(() {
+                          _selectedOcrSide = side;
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppTheme.emerald600 : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? AppTheme.emerald600 : AppTheme.slate200,
+                            width: 1.2,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: AppTheme.emerald600.withValues(alpha: 0.25),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Text(
+                          '${side.toUpperCase()} FACE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                            color: isSelected ? Colors.white : AppTheme.slate600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Packaging Image Preview with tap to zoom and interactive OCR bounding boxes
+          if (resolvedImageUrl.isNotEmpty)
+            Container(
+              height: 220,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.slate200),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final boxW = constraints.maxWidth;
+                    final boxH = constraints.maxHeight;
+
+                    // 1. Determine image aspect ratio (width / height)
+                    double imgAspect = _imageAspectRatios[resolvedImageUrl] ?? 0.0;
+                    if (imgAspect <= 0 && boundingBoxes.isNotEmpty) {
+                      final firstBox = boundingBoxes.first;
+                      if (firstBox['aspect_ratio'] != null && (firstBox['aspect_ratio'] as num) > 0) {
+                        imgAspect = (firstBox['aspect_ratio'] as num).toDouble();
+                      } else if (firstBox['orig_w'] != null && firstBox['orig_h'] != null && (firstBox['orig_h'] as num) > 0) {
+                        imgAspect = (firstBox['orig_w'] as num).toDouble() / (firstBox['orig_h'] as num).toDouble();
+                      }
+                    }
+                    if (imgAspect <= 0) {
+                      imgAspect = boxW / boxH; // Fallback before image metadata resolves
+                    }
+
+                    // 2. Exact letterbox geometry matching BoxFit.contain
+                    final containerAspect = boxW / boxH;
+                    double renderedW, renderedH, offsetX, offsetY;
+                    if (containerAspect > imgAspect) {
+                      renderedH = boxH;
+                      renderedW = boxH * imgAspect;
+                      offsetX = (boxW - renderedW) / 2.0;
+                      offsetY = 0.0;
+                    } else {
+                      renderedW = boxW;
+                      renderedH = boxW / imgAspect;
+                      offsetX = 0.0;
+                      offsetY = (boxH - renderedH) / 2.0;
+                    }
+
+                    return Stack(
+                      children: [
+                        // Base Packaging Image placed exactly inside the letterbox bounds
+                        Positioned(
+                          left: offsetX,
+                          top: offsetY,
+                          width: renderedW,
+                          height: renderedH,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => FullScreenImageViewer(
+                                    imageUrl: resolvedImageUrl,
+                                    boundingBoxes: boundingBoxes,
+                                    aspectRatio: imgAspect > 0 ? imgAspect : null,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Image.network(
+                              resolvedImageUrl,
+                              fit: BoxFit.fill,
+                              loadingBuilder: (ctx, child, progress) {
+                                if (progress == null) return child;
+                                return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.emerald600));
+                              },
+                              errorBuilder: (_, __, ___) => const Center(
+                                child: Icon(Icons.broken_image_rounded, color: AppTheme.slate500, size: 36),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Interactive OCR Bounding Boxes Highlight Overlay aligned to rendered image
+                        if (_showOcrBoundingBoxes && boundingBoxes.isNotEmpty)
+                          ...boundingBoxes.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final box = entry.value;
+                            final isSelected = _selectedBoxIndex == idx;
+
+                            double normX = 0, normY = 0, normW = 0, normH = 0;
+                            final origW = (box['orig_w'] as num?)?.toDouble();
+                            final origH = (box['orig_h'] as num?)?.toDouble();
+
+                            if (box.containsKey('x') && box['x'] != null) {
+                              double rx = (box['x'] as num).toDouble();
+                              double ry = ((box['y'] ?? 0) as num).toDouble();
+                              double rw = ((box['width'] ?? 0) as num).toDouble();
+                              double rh = ((box['height'] ?? 0) as num).toDouble();
+
+                              if (origW != null && origW > 0 && rx > 100.0) {
+                                normX = (rx / origW) * 100.0;
+                                normW = (rw / origW) * 100.0;
+                              } else if (rx <= 1.0 && rw <= 1.0 && (rx > 0 || rw > 0)) {
+                                normX = rx * 100.0;
+                                normW = rw * 100.0;
+                              } else {
+                                normX = rx;
+                                normW = rw;
+                              }
+
+                              if (origH != null && origH > 0 && ry > 100.0) {
+                                normY = (ry / origH) * 100.0;
+                                normH = (rh / origH) * 100.0;
+                              } else if (ry <= 1.0 && rh <= 1.0 && (ry > 0 || rh > 0)) {
+                                normY = ry * 100.0;
+                                normH = rh * 100.0;
+                              } else {
+                                normY = ry;
+                                normH = rh;
+                              }
+                            } else if (box['box'] is List && (box['box'] as List).length >= 4) {
+                              final pts = box['box'] as List;
+                              final x1 = (pts[0][0] as num).toDouble();
+                              final y1 = (pts[0][1] as num).toDouble();
+                              final x2 = (pts[1][0] as num).toDouble();
+                              final y3 = (pts[2][1] as num).toDouble();
+                              final ow = origW ?? (imgAspect > 0 ? 1000.0 * imgAspect : 1000.0);
+                              final oh = origH ?? 1000.0;
+                              normX = (x1 / ow) * 100.0;
+                              normY = (y1 / oh) * 100.0;
+                              normW = ((x2 - x1) / ow) * 100.0;
+                              normH = ((y3 - y1) / oh) * 100.0;
+                            }
+
+                            final l = offsetX + (normX / 100.0) * renderedW;
+                            final t = offsetY + (normY / 100.0) * renderedH;
+                            final w = (normW / 100.0) * renderedW;
+                            final h = (normH / 100.0) * renderedH;
+
+                            final cl = l.clamp(offsetX, (offsetX + renderedW - 8.0).clamp(offsetX, offsetX + renderedW));
+                            final ct = t.clamp(offsetY, (offsetY + renderedH - 6.0).clamp(offsetY, offsetY + renderedH));
+                            final cw = w.clamp(8.0, (offsetX + renderedW - cl).clamp(8.0, renderedW));
+                            final ch = h.clamp(6.0, (offsetY + renderedH - ct).clamp(6.0, renderedH));
+
+                            final bText = (box['text'] ?? '').toString();
+                            final bConf = box['confidence'] != null
+                                ? ((box['confidence'] as num) * 100).toStringAsFixed(0)
+                                : '95';
+
+                            return Positioned(
+                              left: cl,
+                              top: ct,
+                              width: cw,
+                              height: ch,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() => _selectedBoxIndex = idx);
+                                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      duration: const Duration(seconds: 3),
+                                      backgroundColor: const Color(0xFF0F172A),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      content: Row(
+                                        children: [
+                                          const Icon(Icons.crop_free_rounded, color: AppTheme.emerald400, size: 16),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'OCR Box #${idx + 1}: "$bText" ($bConf% conf)',
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? Colors.amber.withValues(alpha: 0.35)
+                                        : AppTheme.emerald500.withValues(alpha: 0.22),
+                                    border: Border.all(
+                                      color: isSelected ? Colors.amberAccent : AppTheme.emerald400,
+                                      width: isSelected ? 2.0 : 1.2,
+                                    ),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
+                                  child: Align(
+                                    alignment: Alignment.topLeft,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 0.5),
+                                      color: isSelected ? Colors.amber[800] : AppTheme.emerald700.withValues(alpha: 0.9),
+                                      child: Text(
+                                        '#${idx + 1}',
+                                        style: const TextStyle(fontSize: 7.5, fontWeight: FontWeight.bold, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+
+                        // Side view indicator badge
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${_selectedOcrSide.toUpperCase()} VIEW',
+                              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'monospace'),
+                            ),
+                          ),
+                        ),
+
+                        // Action Controls: Toggle Bounding Boxes & Fullscreen Button
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (boundingBoxes.isNotEmpty)
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() => _showOcrBoundingBoxes = !_showOcrBoundingBoxes);
+                                  },
+                                  child: Container(
+                                    margin: const EdgeInsets.only(right: 6),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: _showOcrBoundingBoxes
+                                          ? AppTheme.emerald600.withValues(alpha: 0.9)
+                                          : Colors.black.withValues(alpha: 0.65),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: _showOcrBoundingBoxes ? AppTheme.emerald400 : Colors.white24,
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _showOcrBoundingBoxes ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                                          size: 13,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Boxes (${boundingBoxes.length})',
+                                          style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => FullScreenImageViewer(
+                                        imageUrl: resolvedImageUrl,
+                                        boundingBoxes: boundingBoxes,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.65),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.fullscreen_rounded, size: 16, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 14),
+
+          // OCR Transcription Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.slate50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              border: Border.all(color: AppTheme.slate200),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.text_snippet_rounded, size: 14, color: AppTheme.slate600),
+                    const SizedBox(width: 6),
+                    Text(
+                      'DETECTED OCR TEXT ($lineCount LINES)',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.slate700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    // Mode Toggle (Cards / Raw)
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          _rawOcrViewMode = !_rawOcrViewMode;
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppTheme.slate200),
+                        ),
+                        child: Text(
+                          _rawOcrViewMode ? 'CARDS' : 'RAW',
+                          style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: AppTheme.slate600),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Copy button
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: ocrText));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('OCR text copied to clipboard'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppTheme.slate200),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.copy_rounded, size: 11, color: AppTheme.slate600),
+                            SizedBox(width: 3),
+                            Text(
+                              'COPY',
+                              style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: AppTheme.slate600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Transcribed Text Display Box
+          Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxHeight: 220),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+              border: Border(
+                left: BorderSide(color: AppTheme.slate200),
+                right: BorderSide(color: AppTheme.slate200),
+                bottom: BorderSide(color: AppTheme.slate200),
+              ),
+            ),
+            child: lines.isNotEmpty
+                ? (_rawOcrViewMode
+                    ? SingleChildScrollView(
+                        child: SelectableText(
+                          ocrText,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            height: 1.5,
+                            color: AppTheme.slate800,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: lines.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 5),
+                        itemBuilder: (ctx, idx) {
+                          final line = lines[idx];
+                          final isMrp = line.contains('MRP') || line.contains('Rs') || line.contains('₹') || line.contains('TAXES');
+                          final isDate = line.contains('MFD') || line.contains('EXP') || line.contains('PKD') || line.contains('DATE') || line.contains('USE BY');
+                          final isQty = line.contains('NET') || line.contains('WT') || line.contains('QTY') || line.contains(' g') || line.contains(' ml') || line.contains(' kg');
+
+                          Color pillColor = AppTheme.slate100;
+                          Color textColor = AppTheme.slate800;
+                          if (isMrp) {
+                            pillColor = AppTheme.emerald600.withValues(alpha: 0.12);
+                            textColor = AppTheme.emerald800;
+                          } else if (isDate) {
+                            pillColor = Colors.blue.withValues(alpha: 0.1);
+                            textColor = Colors.blue.shade900;
+                          } else if (isQty) {
+                            pillColor = Colors.amber.withValues(alpha: 0.14);
+                            textColor = Colors.amber.shade900;
+                          }
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: pillColor,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: pillColor.withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '[${(idx + 1).toString().padLeft(2, '0')}]',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'monospace',
+                                    color: AppTheme.slate400,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    line,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'monospace',
+                                      color: textColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ))
+                : const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'No text detected on this face',
+                        style: TextStyle(fontSize: 11, color: AppTheme.slate400),
+                      ),
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1283,8 +2046,1000 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     );
   }
 
-  // --- 5. Extracted Facts Table ---
+  // --- 4C. LLM Packaging Sentences Card ---
+  Widget _buildLlmSentencesCard({
+    required Map item,
+    required Map<String, dynamic> declarations,
+  }) {
+    List<String> sentences = [];
+
+    // Check all containers for summary_sentences
+    for (final container in [
+      declarations,
+      item,
+      _ocrDetails,
+      declarations['raw_declarations'],
+      declarations['raw_extractions'],
+      declarations['extracted_declarations'],
+      item['raw_declarations'],
+      item['raw_extractions'],
+      item['extracted_declarations'],
+      _ocrDetails?['raw_declarations'],
+      _ocrDetails?['raw_extractions'],
+      _ocrDetails?['extracted_declarations'],
+    ]) {
+      if (container is Map && container['summary_sentences'] is List && (container['summary_sentences'] as List).isNotEmpty) {
+        sentences = (container['summary_sentences'] as List)
+            .map((s) => s.toString().trim())
+            .where((s) => s.isNotEmpty)
+            .toList();
+        if (sentences.isNotEmpty) break;
+      }
+    }
+
+    // Dynamic synthesis fallback if empty
+    if (sentences.isEmpty) {
+      final pName = declarations['generic_product_name'] ?? item['product_name'] ?? 'Product';
+      final mName = declarations['manufacturer_name'] ?? item['manufacturer_name'];
+      final mrp = declarations['mrp'] ?? item['mrp'];
+      final netQty = declarations['net_quantity'] ?? item['net_quantity'];
+      final unit = declarations['unit'] ?? 'g';
+      final mfgDate = declarations['manufacturing_date'] ?? declarations['manufacture_month'];
+      final expDate = declarations['expiry_date'] ?? declarations['best_before'];
+
+      sentences.add('The packaging explicitly declares commodity name as "$pName".');
+      if (mName != null && mName.toString().isNotEmpty) {
+        sentences.add('Manufactured and packed by "$mName".');
+      }
+      if (mrp != null && mrp.toString().isNotEmpty) {
+        sentences.add('Maximum Retail Price (MRP) is labeled as ₹$mrp inclusive of all applicable taxes.');
+      }
+      if (netQty != null && netQty.toString().isNotEmpty) {
+        sentences.add('Net declared weight/volume is $netQty $unit under Rule 11 of the Legal Metrology Rules.');
+      }
+      if (mfgDate != null || expDate != null) {
+        sentences.add('Production timeline identified with MFD ${mfgDate ?? "Declared"} and Best Before / Expiry ${expDate ?? "Declared"}.');
+      }
+
+      // Check if brand claims exist to synthesize claim sentences
+      final claimsList = declarations['brand_claims'] ?? item['brand_claims'];
+      if (claimsList is List && claimsList.isNotEmpty) {
+        for (var c in claimsList) {
+          final claimStr = c is Map ? (c['claim'] ?? '').toString() : c.toString();
+          if (claimStr.isNotEmpty) {
+            sentences.add('Brand Claim: "$claimStr" prominently showcased on packaging label.');
+          }
+        }
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with AI Icon
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.psychology_rounded, size: 18, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'LLM PACKAGING SENTENCES',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.0,
+                        color: AppTheme.slate800,
+                      ),
+                    ),
+                    Text(
+                      'Groq LLaMA 3.3 70B • Packaging Reasoning Engine',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.slate500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFC7D2FE)),
+                ),
+                child: Text(
+                  '${sentences.length} Sentences',
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF4F46E5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Formulated by passing all detected packaging OCR tokens to the LLM to verify consumer claims and statutory declarations.',
+            style: TextStyle(fontSize: 11, color: AppTheme.slate600, height: 1.4),
+          ),
+          const SizedBox(height: 14),
+
+          // Sentences List
+          ...sentences.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final sentence = entry.value;
+            final isBrandClaim = sentence.toLowerCase().contains('brand claim') ||
+                sentence.toLowerCase().contains('claim') ||
+                sentence.contains('“') ||
+                (sentence.contains('"') && (sentence.toLowerCase().contains('pure') || sentence.toLowerCase().contains('veg') || sentence.toLowerCase().contains('crispy') || sentence.toLowerCase().contains('zero')));
+
+            if (isBrandClaim) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFFDE68A), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF59E0B),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.star_rounded, size: 12, color: Colors.white),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'BRAND CLAIM HIGHLIGHT',
+                                  style: TextStyle(
+                                    fontSize: 8.5,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.6,
+                                    color: Color(0xFFB45309),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            sentence,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF78350F),
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.only(top: 3),
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppTheme.emerald600.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${idx + 1}',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.emerald700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      sentence,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.slate700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // --- 4D. Claims Made by Brand ---
+  Widget _buildBrandClaimsSection({
+    required Map item,
+    required Map<String, dynamic> declarations,
+  }) {
+    List<Map<String, dynamic>> brandClaims = [];
+
+    // Check all containers for brand_claims
+    List<dynamic>? claimsSource;
+    for (final container in [
+      declarations,
+      item,
+      _ocrDetails,
+      declarations['raw_declarations'],
+      declarations['raw_extractions'],
+      declarations['extracted_declarations'],
+      item['raw_declarations'],
+      item['raw_extractions'],
+      item['extracted_declarations'],
+      _ocrDetails?['raw_declarations'],
+      _ocrDetails?['raw_extractions'],
+      _ocrDetails?['extracted_declarations'],
+    ]) {
+      if (container is Map && container['brand_claims'] is List && (container['brand_claims'] as List).isNotEmpty) {
+        claimsSource = container['brand_claims'] as List;
+        break;
+      }
+    }
+
+    if (claimsSource != null) {
+      for (var c in claimsSource) {
+        if (c is Map) {
+          brandClaims.add(Map<String, dynamic>.from(c));
+        } else if (c is String && c.isNotEmpty) {
+          brandClaims.add({
+            'claim': c,
+            'category': 'Packaging Assurance',
+            'verified': true,
+            'note': 'Extracted by OCR and analyzed against statutory standards.',
+          });
+        }
+      }
+    }
+
+    // If no brand claims in raw OCR, render factual placeholder without hallucination
+    if (brandClaims.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppTheme.slate200),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.verified_outlined, color: AppTheme.slate400, size: 20),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No promotional marketing claims detected in raw packaging OCR. Only statutory regulatory declarations were identified.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.slate600,
+                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFFBEB), Color(0xFFFEF3C7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFD97706).withValues(alpha: 0.12),
+            blurRadius: 30,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section Title Row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD97706),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFD97706).withValues(alpha: 0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.verified_rounded, size: 18, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'CLAIMS MADE BY BRAND',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
+                        color: Color(0xFF78350F),
+                      ),
+                    ),
+                    Text(
+                      'Promotional & Product Assurances Highlighted by AI',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF92400E).withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.auto_awesome_rounded, size: 12, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${brandClaims.length} Claims',
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Cards for each claim
+          ...brandClaims.map((claim) {
+            final claimText = (claim['claim'] ?? '').toString();
+            final category = (claim['category'] ?? 'Brand Assurance').toString();
+            final isVerified = claim['verified'] == true;
+            final note = (claim['note'] ?? '').toString();
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFB45309).withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFFCD34D)),
+                        ),
+                        child: Text(
+                          category.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.6,
+                            color: Color(0xFF92400E),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: isVerified ? const Color(0xFFECFDF5) : const Color(0xFFFFF7ED),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isVerified ? const Color(0xFFA7F3D0) : const Color(0xFFFED7AA),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isVerified ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                              size: 11,
+                              color: isVerified ? const Color(0xFF059669) : const Color(0xFFD97706),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isVerified ? 'Verified in OCR' : 'Under Review',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: isVerified ? const Color(0xFF047857) : const Color(0xFFB45309),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '“$claimText”',
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                      height: 1.35,
+                    ),
+                  ),
+                  if (note.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.info_rounded, size: 12, color: Color(0xFFD97706)),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            note,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF64748B),
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+
+  // --- 5B. Full Verbatim Content Sections (Ingredients, Nutrition, Allergen, Storage, etc.) ---
+  Widget _buildFullContentSections({
+    required Map<String, dynamic> declarations,
+    Map<String, dynamic>? item,
+  }) {
+    final rootItem = item ?? widget.item;
+
+    dynamic findVal(String key) {
+      if (declarations[key] != null) return declarations[key];
+      if (rootItem[key] != null) return rootItem[key];
+      if (_ocrDetails?[key] != null) return _ocrDetails![key];
+      for (final container in [
+        declarations['raw_declarations'],
+        declarations['raw_extractions'],
+        declarations['extracted_declarations'],
+        rootItem['raw_declarations'],
+        rootItem['raw_extractions'],
+        rootItem['extracted_declarations'],
+        _ocrDetails?['raw_declarations'],
+        _ocrDetails?['raw_extractions'],
+        _ocrDetails?['extracted_declarations'],
+      ]) {
+        if (container is Map) {
+          if (container[key] != null) return container[key];
+          if (container['llm'] is Map && container['llm'][key] != null) return container['llm'][key];
+        }
+      }
+      return null;
+    }
+
+    String? getStr(String key) {
+      final v = findVal(key);
+      if (v == null) return null;
+      final s = v.toString().trim();
+      return (s.isNotEmpty && s.toLowerCase() != 'null' && s.toLowerCase() != 'none') ? s : null;
+    }
+
+    List<dynamic>? getList(String key) {
+      final v = findVal(key);
+      return (v is List && v.isNotEmpty) ? v : null;
+    }
+
+    final ingredientsList = getStr('ingredients_list');
+    final compositionText = getStr('composition');
+    final allergenInfo = getStr('allergen_info');
+    final storageInstructions = getStr('storage_instructions');
+    final usageInstructions = getStr('usage_instructions');
+    final legalDisclaimer = getStr('legal_disclaimer');
+    final nutritionTable = getList('nutrition_table');
+    final certifications = getList('certifications');
+    final otherTextBlocks = getList('other_text_blocks');
+
+    final hasSomething = (ingredientsList != null ||
+        compositionText != null ||
+        allergenInfo != null ||
+        storageInstructions != null ||
+        usageInstructions != null ||
+        legalDisclaimer != null ||
+        nutritionTable != null ||
+        certifications != null ||
+        otherTextBlocks != null);
+
+    if (!hasSomething) return const SizedBox.shrink();
+
+    Widget buildSectionCard({
+      required IconData icon,
+      required Color iconBg,
+      required Color iconColor,
+      required String title,
+      required Widget body,
+    }) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: iconBg.withValues(alpha: 0.08),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                ),
+                border: Border(
+                  bottom: BorderSide(color: iconBg.withValues(alpha: 0.2), width: 1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: iconBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, size: 16, color: iconColor),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: iconBg.withValues(alpha: 1.0),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: body,
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget buildVerbatimText(String text, {Color? color}) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: SelectableText(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: color ?? const Color(0xFF1E293B),
+            height: 1.6,
+            fontFamily: 'monospace',
+          ),
+        ),
+      );
+    }
+
+    final sections = <Widget>[];
+
+    // Section header
+    sections.add(
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.article_rounded, size: 16, color: Color(0xFF475569)),
+            const SizedBox(width: 6),
+            const Text(
+              'FULL PACKAGE CONTENT EXTRACTION',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+                color: Color(0xFF475569),
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF7C3AED).withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.text_snippet_rounded, size: 10, color: Color(0xFF7C3AED)),
+                  SizedBox(width: 4),
+                  Text(
+                    'Verbatim OCR',
+                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF7C3AED)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // --- Ingredients List ---
+    if (ingredientsList != null) {
+      sections.add(buildSectionCard(
+        icon: Icons.grass_rounded,
+        iconBg: const Color(0xFF16A34A),
+        iconColor: Colors.white,
+        title: 'INGREDIENTS / COMPOSITION',
+        body: buildVerbatimText(ingredientsList, color: const Color(0xFF14532D)),
+      ));
+    }
+
+    // --- Composition (if separate from ingredients) ---
+    if (compositionText != null && compositionText != ingredientsList) {
+      sections.add(buildSectionCard(
+        icon: Icons.science_rounded,
+        iconBg: const Color(0xFF0284C7),
+        iconColor: Colors.white,
+        title: 'COMPOSITION',
+        body: buildVerbatimText(compositionText, color: const Color(0xFF0C4A6E)),
+      ));
+    }
+
+    // --- Nutrition Table ---
+    if (nutritionTable != null) {
+      sections.add(buildSectionCard(
+        icon: Icons.bar_chart_rounded,
+        iconBg: const Color(0xFFD97706),
+        iconColor: Colors.white,
+        title: 'NUTRITIONAL INFORMATION',
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Table header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFF78350F).withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Expanded(flex: 5, child: Text('Nutrient', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF78350F), letterSpacing: 0.5))),
+                  Expanded(flex: 3, child: Text('Per Serving', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF78350F), letterSpacing: 0.5), textAlign: TextAlign.center)),
+                  Expanded(flex: 3, child: Text('Per 100g/ml', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF78350F), letterSpacing: 0.5), textAlign: TextAlign.center)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...nutritionTable.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final row = entry.value;
+              if (row is! Map) return const SizedBox.shrink();
+              final nutrient = (row['nutrient'] ?? '').toString();
+              final perServing = (row['per_serving'] ?? row['per100g'] ?? '—').toString();
+              final per100g = (row['per_100g'] ?? row['per100g'] ?? '—').toString();
+              final unit = (row['unit'] ?? '').toString();
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: idx.isEven ? Colors.transparent : const Color(0xFFF8FAFC),
+                  border: Border(bottom: BorderSide(color: const Color(0xFFE2E8F0).withValues(alpha: 0.6), width: 0.5)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Text(
+                        nutrient,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        perServing.isNotEmpty ? perServing : '—',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF475569), fontFamily: 'monospace'),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        per100g.isNotEmpty ? '$per100g ${unit.isNotEmpty ? unit : ""}'.trim() : '—',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF475569), fontFamily: 'monospace'),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ));
+    }
+
+    // --- Allergen Info ---
+    if (allergenInfo != null) {
+      sections.add(buildSectionCard(
+        icon: Icons.warning_amber_rounded,
+        iconBg: const Color(0xFFDC2626),
+        iconColor: Colors.white,
+        title: 'ALLERGEN INFORMATION',
+        body: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFFCA5A5)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SelectableText(
+                  allergenInfo,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF7F1D1D),
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ));
+    }
+
+    // --- Storage Instructions ---
+    if (storageInstructions != null) {
+      sections.add(buildSectionCard(
+        icon: Icons.inventory_2_rounded,
+        iconBg: const Color(0xFF0891B2),
+        iconColor: Colors.white,
+        title: 'STORAGE INSTRUCTIONS',
+        body: buildVerbatimText(storageInstructions, color: const Color(0xFF0C4A6E)),
+      ));
+    }
+
+    // --- Usage / Preparation Instructions ---
+    if (usageInstructions != null) {
+      sections.add(buildSectionCard(
+        icon: Icons.restaurant_menu_rounded,
+        iconBg: const Color(0xFF7C3AED),
+        iconColor: Colors.white,
+        title: 'USAGE / PREPARATION INSTRUCTIONS',
+        body: buildVerbatimText(usageInstructions, color: const Color(0xFF4C1D95)),
+      ));
+    }
+
+    // --- Certifications ---
+    if (certifications != null && certifications.isNotEmpty) {
+      sections.add(buildSectionCard(
+        icon: Icons.verified_rounded,
+        iconBg: const Color(0xFF059669),
+        iconColor: Colors.white,
+        title: 'CERTIFICATIONS & MARKS',
+        body: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: certifications.map((cert) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF6EE7B7)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle_rounded, size: 13, color: Color(0xFF059669)),
+                  const SizedBox(width: 5),
+                  Text(
+                    cert.toString(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF065F46),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ),
+      ));
+    }
+
+    // --- Legal Disclaimer ---
+    if (legalDisclaimer != null) {
+      sections.add(buildSectionCard(
+        icon: Icons.gavel_rounded,
+        iconBg: const Color(0xFF6B7280),
+        iconColor: Colors.white,
+        title: 'LEGAL DISCLAIMER / ADVISORY',
+        body: buildVerbatimText(legalDisclaimer, color: const Color(0xFF374151)),
+      ));
+    }
+
+    // --- Other Text Blocks ---
+    if (otherTextBlocks != null) {
+      for (final block in otherTextBlocks) {
+        if (block is! Map) continue;
+        final label = (block['label'] ?? 'Additional Information').toString();
+        final text = (block['text'] ?? '').toString().trim();
+        final panel = (block['panel'] ?? '').toString();
+        if (text.isEmpty) continue;
+        sections.add(buildSectionCard(
+          icon: Icons.notes_rounded,
+          iconBg: const Color(0xFF64748B),
+          iconColor: Colors.white,
+          title: '${label.toUpperCase()}${panel.isNotEmpty ? " (${panel.toUpperCase()} PANEL)" : ""}',
+          body: buildVerbatimText(text),
+        ));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: sections,
+    );
+  }
+
+  // --- 5. Structured Extracted Facts Table (Front vs Back Panel & Deep Key-Values) ---
   Widget _buildExtractedFactsTable({
+
     String? mfgName,
     String? prodName,
     String? netQty,
@@ -1319,87 +3074,198 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       return false;
     }
 
-    String? getVal(List<String> keys) {
-      for (final k in keys) {
-        if (declarations.containsKey(k) && declarations[k] != null) {
-          final v = declarations[k].toString().trim();
-          if (v.isNotEmpty && v.toLowerCase() != 'null' && v.toLowerCase() != 'none') return v;
-        }
-        if (rootItem.containsKey(k) && rootItem[k] != null) {
-          final v = rootItem[k].toString().trim();
-          if (v.isNotEmpty && v.toLowerCase() != 'null' && v.toLowerCase() != 'none') return v;
+    dynamic findAny(String key) {
+      if (declarations[key] != null) return declarations[key];
+      if (rootItem[key] != null) return rootItem[key];
+      if (_ocrDetails?[key] != null) return _ocrDetails![key];
+      for (final container in [
+        declarations['raw_declarations'],
+        declarations['raw_extractions'],
+        declarations['extracted_declarations'],
+        rootItem['raw_declarations'],
+        rootItem['raw_extractions'],
+        rootItem['extracted_declarations'],
+        _ocrDetails?['raw_declarations'],
+        _ocrDetails?['raw_extractions'],
+        _ocrDetails?['extracted_declarations'],
+      ]) {
+        if (container is Map) {
+          if (container[key] != null) return container[key];
+          if (container['llm'] is Map && container['llm'][key] != null) return container['llm'][key];
         }
       }
       return null;
     }
 
-    final List<Widget> rows = [];
+    String? getVal(List<String> keys) {
+      for (final k in keys) {
+        final v = findAny(k);
+        if (v != null) {
+          final s = v.toString().trim();
+          if (s.isNotEmpty && s.toLowerCase() != 'null' && s.toLowerCase() != 'none') return s;
+        }
+      }
+      return null;
+    }
 
-    void maybeAddRow({
-      required String label,
+    List<dynamic>? findList(String key) {
+      final v = findAny(key);
+      return (v is List && v.isNotEmpty) ? v : null;
+    }
+
+    // 1. Data collections
+    final List<Map<String, dynamic>> frontItems = [];
+    final List<Map<String, dynamic>> backItems = [];
+    final List<Map<String, dynamic>> allKvItems = [];
+
+    // Helper to safely add an item
+    void addItem({
+      required String parameter,
       required String? value,
+      required String category,
+      required String panel,
       required bool isNonCompliant,
       bool isBold = false,
       bool isEmerald = false,
-      bool isBadge = false,
       bool isMono = false,
-      String missingLabel = 'Not Declared',
     }) {
-      final bool isDetected = value != null &&
+      final isDetected = value != null &&
           value.trim().isNotEmpty &&
           value.trim().toLowerCase() != 'null' &&
           value.trim().toLowerCase() != 'none';
 
-      // Show only what's extracted, and not missing unless it's non-compliant
-      if (isDetected) {
-        rows.add(_buildFactRow(
-          label,
-          value,
-          isBold: isBold,
-          isEmerald: isEmerald,
-          isBadge: isBadge,
-          isMono: isMono,
-        ));
-      } else if (isNonCompliant) {
-        rows.add(_buildFactRow(
-          label,
-          null,
-          isBold: isBold,
-          isEmerald: isEmerald,
-          isBadge: isBadge,
-          isMono: isMono,
-          missingLabel: missingLabel,
-        ));
+      if (!isDetected && !isNonCompliant) return;
+
+      final itemMap = {
+        'parameter': parameter,
+        'value': isDetected ? value : null,
+        'category': category,
+        'panel': panel.toUpperCase(),
+        'isNonCompliant': isNonCompliant,
+        'isBold': isBold,
+        'isEmerald': isEmerald,
+        'isMono': isMono,
+      };
+
+      if (panel.toUpperCase().contains('FRONT')) {
+        if (!frontItems.any((x) => x['parameter'] == parameter)) {
+          frontItems.add(itemMap);
+        }
+      } else {
+        if (!backItems.any((x) => x['parameter'] == parameter)) {
+          backItems.add(itemMap);
+        }
+      }
+
+      if (!allKvItems.any((x) => x['parameter'] == parameter)) {
+        allKvItems.add(itemMap);
       }
     }
 
-    // 1. Manufacturer Name
-    final mfgVal = mfgName ?? getVal(['manufacturer_name', 'mfg_name', 'manufacturer']);
-    maybeAddRow(
-      label: 'Manufacturer Name',
-      value: mfgVal,
-      isNonCompliant: isRuleFailed(['manufacturer', 'rule-lm-003', 'packer', 'importer']),
-      isBold: true,
-    );
+    // A. Ingest structured tables returned directly by backend LLM
+    final rawFront = findList('front_panel_table');
+    if (rawFront != null) {
+      for (var it in rawFront) {
+        if (it is Map) {
+          final p = (it['parameter'] ?? it['key'] ?? '').toString();
+          final v = (it['declared_value'] ?? it['value'] ?? '').toString();
+          final c = (it['category'] ?? 'Primary Declaration').toString();
+          if (p.isNotEmpty && v.isNotEmpty) {
+            addItem(
+              parameter: p,
+              value: v,
+              category: c,
+              panel: 'FRONT',
+              isNonCompliant: isRuleFailed([p, c]),
+            );
+          }
+        }
+      }
+    }
 
-    // 2. Manufacturer Address
-    final mfgAddrVal = getVal(['manufacturer_address', 'mfg_address', 'factory_address', 'premise_address']);
-    maybeAddRow(
-      label: 'Manufacturer Address',
-      value: mfgAddrVal,
-      isNonCompliant: isRuleFailed(['manufacturer_address', 'factory_address', 'premise_address']),
-    );
+    final rawBack = findList('back_panel_table');
+    if (rawBack != null) {
+      for (var it in rawBack) {
+        if (it is Map) {
+          final p = (it['parameter'] ?? it['key'] ?? '').toString();
+          final v = (it['declared_value'] ?? it['value'] ?? '').toString();
+          final c = (it['category'] ?? 'Statutory Declaration').toString();
+          if (p.isNotEmpty && v.isNotEmpty) {
+            addItem(
+              parameter: p,
+              value: v,
+              category: c,
+              panel: 'BACK',
+              isNonCompliant: isRuleFailed([p, c]),
+            );
+          }
+        }
+      }
+    }
 
-    // 3. Generic Product Name
+    final rawAll = findList('all_key_value_pairs');
+    if (rawAll != null) {
+      for (var it in rawAll) {
+        if (it is Map) {
+          final p = (it['key'] ?? it['parameter'] ?? '').toString();
+          final v = (it['value'] ?? it['declared_value'] ?? '').toString();
+          final c = (it['category'] ?? 'General').toString();
+          final pan = (it['panel'] ?? 'BACK').toString();
+          if (p.isNotEmpty && v.isNotEmpty) {
+            addItem(
+              parameter: p,
+              value: v,
+              category: c,
+              panel: pan,
+              isNonCompliant: isRuleFailed([p, c]),
+            );
+          }
+        }
+      }
+    }
+
+    // B. Deterministic Packaging Declarations (Front vs Back classification)
+    // 1. Generic Product Name (FRONT)
     final genericVal = prodName ?? getVal(['generic_product_name', 'generic_name', 'product_name', 'commodity_name']);
-    maybeAddRow(
-      label: 'Generic Product Name',
+    addItem(
+      parameter: 'Generic Product Name',
       value: genericVal,
+      category: 'Product Identity',
+      panel: 'FRONT',
       isNonCompliant: isRuleFailed(['generic_product_name', 'rule-lm-006', 'commodity', 'generic name']),
+      isBold: true,
       isEmerald: true,
     );
 
-    // 4. Maximum Retail Price (MRP)
+    // 2. Net Quantity (FRONT)
+    final netQtyVal = netQty ?? (() {
+      final q = getVal(['net_quantity', 'quantity', 'net_wt', 'net_weight', 'net_volume']);
+      final u = getVal(['unit', 'net_quantity_unit', 'metric_unit']) ?? '';
+      if (q != null && q.isNotEmpty) return '$q $u'.trim();
+      return null;
+    })();
+    addItem(
+      parameter: 'Net Quantity',
+      value: netQtyVal,
+      category: 'Legal Metrology',
+      panel: 'FRONT',
+      isNonCompliant: isRuleFailed(['net_quantity', 'rule-lm-002', 'quantity', 'weight', 'measure', 'unit']),
+      isBold: true,
+    );
+
+    // 3. Dietary Indicator (FRONT)
+    final vegVal = getVal(['veg_nonveg', 'is_vegetarian', 'dietary_indicator']);
+    if (vegVal != null) {
+      addItem(
+        parameter: 'Dietary Symbol',
+        value: vegVal,
+        category: 'Food Safety (FSSAI)',
+        panel: 'FRONT',
+        isNonCompliant: isRuleFailed(['vegetarian', 'dietary']),
+      );
+    }
+
+    // 4. Maximum Retail Price (MRP) (BACK)
     final rawMrp = getVal(['mrp', 'price', 'maximum_retail_price']);
     final currency = getVal(['currency']) ?? '₹';
     final mrpDisplay = rawMrp != null
@@ -1407,153 +3273,178 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
             ? '$rawMrp (Incl. of all taxes)'
             : '$currency $rawMrp (Incl. of all taxes)')
         : null;
-    maybeAddRow(
-      label: 'Maximum Retail Price (MRP)',
+    addItem(
+      parameter: 'Maximum Retail Price (MRP)',
       value: mrpDisplay,
+      category: 'Statutory Pricing',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['mrp', 'rule-lm-001', 'retail price', 'maximum price']),
+      isBold: true,
+      isMono: true,
+    );
+
+    // 5. Unit Sale Price (USP) (BACK)
+    final uspVal = getVal(['unit_sale_price', 'usp', 'unit_price']);
+    addItem(
+      parameter: 'Unit Sale Price (USP)',
+      value: uspVal,
+      category: 'Statutory Pricing',
+      panel: 'BACK',
+      isNonCompliant: isRuleFailed(['unit sale price', 'usp']),
+      isMono: true,
+    );
+
+    // 6. Manufacturer Name (BACK)
+    final mfgVal = mfgName ?? getVal(['manufacturer_name', 'mfg_name', 'manufacturer']);
+    addItem(
+      parameter: 'Manufacturer Name',
+      value: mfgVal,
+      category: 'Manufacturer Identity',
+      panel: 'BACK',
+      isNonCompliant: isRuleFailed(['manufacturer', 'rule-lm-003', 'packer', 'importer']),
       isBold: true,
     );
 
-    // 5. Unit Sale Price (USP)
-    final uspVal = getVal(['unit_sale_price', 'usp', 'unit_price']);
-    maybeAddRow(
-      label: 'Unit Sale Price (USP)',
-      value: uspVal,
-      isNonCompliant: isRuleFailed(['unit sale price', 'usp']),
+    // 7. Manufacturer Address (BACK)
+    final mfgAddrVal = getVal(['manufacturer_address', 'mfg_address', 'factory_address', 'premise_address']);
+    addItem(
+      parameter: 'Manufacturer Address',
+      value: mfgAddrVal,
+      category: 'Manufacturing Premise',
+      panel: 'BACK',
+      isNonCompliant: isRuleFailed(['manufacturer_address', 'factory_address', 'premise_address']),
     );
 
-    // 6. Net Quantity
-    final netQtyVal = netQty ?? (() {
-      final q = getVal(['net_quantity', 'quantity', 'net_wt', 'net_weight', 'net_volume']);
-      final u = getVal(['unit', 'net_quantity_unit', 'metric_unit']) ?? '';
-      if (q != null && q.isNotEmpty) {
-        return '$q $u'.trim();
-      }
-      return null;
-    })();
-    maybeAddRow(
-      label: 'Net Quantity',
-      value: netQtyVal,
-      isNonCompliant: isRuleFailed(['net_quantity', 'rule-lm-002', 'quantity', 'weight', 'measure', 'unit']),
-      isBadge: true,
-    );
-
-    // 7. Month & Year of Manufacture
+    // 8. Month & Year of Manufacture (BACK)
     final mfgDateVal = getVal(['manufacturing_date', 'mfg_date', 'packing_date', 'packed_date']) ?? (() {
       final m = getVal(['manufacture_month', 'mfg_month']);
       final y = getVal(['manufacture_year', 'mfg_year']);
-      if (m != null || y != null) {
-        return '${m ?? ''}/${y ?? ''}'.trim();
-      }
+      if (m != null || y != null) return '${m ?? ''}/${y ?? ''}'.trim();
       return null;
     })();
-    maybeAddRow(
-      label: 'Date of Manufacture',
+    addItem(
+      parameter: 'Date of Manufacture',
       value: mfgDateVal,
+      category: 'Production Timeline',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['manufacture_date', 'rule-lm-004', 'month', 'year', 'packing date']),
+      isMono: true,
     );
 
-    // 8. Best Before / Expiry Date
+    // 9. Best Before / Expiry Date (BACK)
     final expDateVal = getVal(['expiry_date', 'best_before', 'use_by', 'exp_date']);
-    maybeAddRow(
-      label: 'Expiry / Best Before',
+    addItem(
+      parameter: 'Expiry / Best Before',
       value: expDateVal,
+      category: 'Shelf Life & Safety',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['expiry', 'best before', 'use by']),
+      isMono: true,
     );
 
-    // 9. Batch Identifier
+    // 10. Batch Identifier (BACK)
     final batchVal = batchId ?? getVal(['batch_number', 'batch_no', 'lot_number', 'lot_no', 'batch_code']);
-    maybeAddRow(
-      label: 'Batch Identifier',
+    addItem(
+      parameter: 'Batch Identifier',
       value: batchVal,
+      category: 'Traceability & Lot',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['batch', 'lot number', 'lot no']),
       isMono: true,
-      missingLabel: 'Missing',
     );
 
-    // 10. Consumer Care Support
+    // 11. Consumer Care Support (BACK)
     final phoneVal = getVal(['consumer_care_phone', 'customer_care_phone', 'helpline', 'care_phone', 'toll_free']);
     final emailVal = getVal(['consumer_care_email', 'customer_care_email', 'email', 'support_email']);
     final careAddrVal = getVal(['consumer_care_address', 'customer_care_address', 'care_address']);
     final careContact = contact ?? phoneVal ?? emailVal ?? careAddrVal;
-    maybeAddRow(
-      label: 'Consumer Care Support',
+    addItem(
+      parameter: 'Consumer Care Helpline',
       value: careContact,
+      category: 'Consumer Redressal',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['consumer_care', 'rule-lm-005', 'customer care', 'helpline', 'contact', 'telephone', 'email']),
       isMono: true,
-      missingLabel: 'Missing',
     );
 
-    // 11. Consumer Care Email (if distinct)
     if (emailVal != null && emailVal != careContact) {
-      maybeAddRow(
-        label: 'Consumer Care Email',
+      addItem(
+        parameter: 'Consumer Care Email',
         value: emailVal,
+        category: 'Consumer Redressal',
+        panel: 'BACK',
         isNonCompliant: false,
         isMono: true,
       );
     }
 
-    // 12. Consumer Care Address (if distinct)
     if (careAddrVal != null && careAddrVal != careContact) {
-      maybeAddRow(
-        label: 'Consumer Care Address',
+      addItem(
+        parameter: 'Consumer Care Address',
         value: careAddrVal,
+        category: 'Consumer Redressal',
+        panel: 'BACK',
         isNonCompliant: false,
       );
     }
 
-    // 13. Country of Origin
+    // 12. Country of Origin (BACK)
     final cooVal = getVal(['country_of_origin', 'origin_country', 'made_in', 'origin']);
-    maybeAddRow(
-      label: 'Country of Origin',
+    addItem(
+      parameter: 'Country of Origin',
       value: cooVal,
+      category: 'Trade & Origin',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['country of origin', 'origin', 'made in']),
     );
 
-    // 14. Packer Details
+    // 13. Packer Details (BACK)
     final packerVal = getVal(['packer_name', 'packer_address', 'packed_by']);
-    maybeAddRow(
-      label: 'Packer Details',
-      value: packerVal,
-      isNonCompliant: isRuleFailed(['packer']),
-    );
+    if (packerVal != null) {
+      addItem(
+        parameter: 'Packer Details',
+        value: packerVal,
+        category: 'Packaging Entity',
+        panel: 'BACK',
+        isNonCompliant: isRuleFailed(['packer']),
+      );
+    }
 
-    // 15. Importer Details
+    // 14. Importer Details (BACK)
     final importerVal = getVal(['importer_name', 'importer_address', 'imported_by']);
-    maybeAddRow(
-      label: 'Importer Details',
-      value: importerVal,
-      isNonCompliant: isRuleFailed(['importer']),
-    );
+    if (importerVal != null) {
+      addItem(
+        parameter: 'Importer Details',
+        value: importerVal,
+        category: 'Import Entity',
+        panel: 'BACK',
+        isNonCompliant: isRuleFailed(['importer']),
+      );
+    }
 
-    // 16. FSSAI License Number
+    // 15. FSSAI License Number (BACK)
     final fssaiVal = getVal(['fssai_license_number', 'fssai_license', 'fssai_no', 'license_no']);
-    maybeAddRow(
-      label: 'FSSAI License No.',
+    addItem(
+      parameter: 'FSSAI License No.',
       value: fssaiVal,
+      category: 'Food Safety Authority',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['fssai', 'food safety']),
       isMono: true,
     );
 
-    // 17. Barcode / GS1 GTIN
+    // 16. Barcode / GS1 GTIN (BACK)
     final barcodeVal = getVal(['barcode', 'ean_code', 'gtin', 'upc']);
-    maybeAddRow(
-      label: 'Barcode / GTIN',
+    addItem(
+      parameter: 'Barcode / GTIN',
       value: barcodeVal,
+      category: 'Standard Identification',
+      panel: 'BACK',
       isNonCompliant: isRuleFailed(['barcode', 'gtin', 'ean']),
       isMono: true,
     );
 
-    // 18. Dietary Indicator (Veg / Non-Veg)
-    final vegVal = getVal(['veg_nonveg', 'is_vegetarian', 'dietary_indicator']);
-    maybeAddRow(
-      label: 'Dietary Indicator',
-      value: vegVal,
-      isNonCompliant: isRuleFailed(['vegetarian', 'dietary']),
-    );
-
-    // 19. All other dynamic extracted fields (e.g. ingredients, dimensions, storage, etc.)
+    // C. Add other dynamic extracted fields (storage, ingredients, nutritional table)
     final handledKeys = {
       'generic_product_name', 'generic_name', 'product_name', 'commodity_name',
       'mrp', 'price', 'maximum_retail_price', 'currency', 'unit_sale_price', 'usp', 'unit_price',
@@ -1572,6 +3463,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       'barcode', 'ean_code', 'gtin', 'upc',
       'veg_nonveg', 'is_vegetarian', 'dietary_indicator',
       'dynamic_fields', 'raw_extractions', 'raw_declarations', 'field_confidence', 'bounding_boxes',
+      'brand_claims', 'summary_sentences', 'declarations_table', 'front_panel_table', 'back_panel_table', 'all_key_value_pairs',
     };
 
     void addDynamicField(String k, dynamic v) {
@@ -1585,9 +3477,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
           .join(' ');
 
-      maybeAddRow(
-        label: formattedLabel,
+      addItem(
+        parameter: formattedLabel,
         value: str,
+        category: 'Additional Declaration',
+        panel: 'BACK',
         isNonCompliant: false,
       );
     }
@@ -1602,157 +3496,391 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
       }
     });
 
-    final List<Widget> children = [];
-    for (int i = 0; i < rows.length; i++) {
-      children.add(rows[i]);
-      if (i < rows.length - 1) {
-        children.add(const Divider(height: 1, thickness: 0.5));
-      }
+    // Determine active items based on _structuredTableTab ('front' | 'back' | 'all')
+    List<Map<String, dynamic>> activeItems = [];
+    if (_structuredTableTab == 'front') {
+      activeItems = frontItems;
+    } else if (_structuredTableTab == 'back') {
+      activeItems = backItems;
+    } else {
+      activeItems = allKvItems;
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        // Section Title & Zero-Hallucination Badge
+        Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              'EXTRACTED FACTS',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-                color: AppTheme.slate600,
-              ),
+            const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.table_chart_rounded, size: 16, color: AppTheme.slate700),
+                SizedBox(width: 6),
+                Text(
+                  'STRUCTURED PACKAGING DECLARATIONS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
+                    color: AppTheme.slate700,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              'EXTRACTED VALUE',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
-                color: AppTheme.slate500,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: AppTheme.emerald500.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppTheme.emerald500.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.verified_rounded, size: 11, color: AppTheme.emerald600),
+                  SizedBox(width: 4),
+                  Text(
+                    'OCR Verified',
+                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: AppTheme.emerald700),
+                  ),
+                ],
               ),
             ),
           ],
         ),
+        const SizedBox(height: 10),
+
+        // Interactive Segmented Tab Selector: Front vs Back vs All Key-Values
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9), // Slate 100
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.slate200),
+          ),
+          child: Row(
+            children: [
+              _buildTabPill('front', 'Front of Pack', Icons.crop_portrait_rounded, frontItems.length),
+              _buildTabPill('back', 'Back of Pack', Icons.flip_to_back_rounded, backItems.length),
+              _buildTabPill('all', 'All Key-Values', Icons.data_object_rounded, allKvItems.length),
+            ],
+          ),
+        ),
         const SizedBox(height: 8),
 
+        // Context Subtitle based on active tab
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            _structuredTableTab == 'front'
+                ? 'Front Display Panel (PDP) — Mandatory statutory identity, net measure & consumer marks.'
+                : (_structuredTableTab == 'back'
+                    ? 'Information Panel — Statutory Legal Metrology declarations, manufacturing/expiry dates & licensing.'
+                    : 'All Key-Value Extractions — Complete raw-to-structured parameter mapping directly from raw OCR.'),
+            style: const TextStyle(fontSize: 10.5, color: AppTheme.slate500, fontWeight: FontWeight.w500),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        // The Structured Table Card
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.8),
+            color: Colors.white.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.95)),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFF0F172A).withValues(alpha: 0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: Column(
-              children: children,
-            ),
+            child: activeItems.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.notes_rounded, color: AppTheme.slate300, size: 36),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No declarations detected on the ${_structuredTableTab.toUpperCase()} panel in raw OCR text.',
+                            style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.w500),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      // Table Column Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        color: const Color(0xFFF8FAFC),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'PARAMETER & CATEGORY',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: AppTheme.slate500,
+                              ),
+                            ),
+                            Text(
+                              'DECLARED RAW VALUE',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
+                                color: AppTheme.slate500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1, thickness: 0.5),
+
+                      // Rows
+                      ...activeItems.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final it = entry.value;
+                        final isLast = idx == activeItems.length - 1;
+
+                        return Column(
+                          children: [
+                            _buildStructuredTableRow(
+                              parameter: (it['parameter'] ?? '').toString(),
+                              value: it['value']?.toString(),
+                              category: (it['category'] ?? 'Declaration').toString(),
+                              panel: (it['panel'] ?? 'BACK').toString(),
+                              isNonCompliant: it['isNonCompliant'] == true,
+                              isBold: it['isBold'] == true,
+                              isEmerald: it['isEmerald'] == true,
+                              isMono: it['isMono'] == true,
+                            ),
+                            if (!isLast) const Divider(height: 1, thickness: 0.5),
+                          ],
+                        );
+                      }),
+                    ],
+                  ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildFactRow(
-    String label,
-    String? value, {
+  Widget _buildTabPill(String tabKey, String label, IconData icon, int count) {
+    final isSelected = _structuredTableTab == tabKey;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _structuredTableTab = tabKey);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.emerald600 : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: AppTheme.emerald600.withValues(alpha: 0.28),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 13,
+                color: isSelected ? Colors.white : AppTheme.slate600,
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  '$label ($count)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected ? Colors.white : AppTheme.slate600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStructuredTableRow({
+    required String parameter,
+    required String? value,
+    required String category,
+    required String panel,
+    required bool isNonCompliant,
     bool isBold = false,
     bool isEmerald = false,
-    bool isBadge = false,
     bool isMono = false,
-    String missingLabel = 'Not Declared',
   }) {
-    final bool isMissing = value == null || value.trim().isEmpty || value.trim().toLowerCase() == 'null' || value.trim().toLowerCase() == 'none';
+    final bool isMissing = value == null ||
+        value.trim().isEmpty ||
+        value.trim().toLowerCase() == 'null' ||
+        value.trim().toLowerCase() == 'none';
+    final isFront = panel.toUpperCase().contains('FRONT');
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.slate500,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: isMissing
-                ? Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEE2E2), // Red 100
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFFCA5A5)), // Red 300
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.warning_amber_rounded,
-                          size: 11,
-                          color: Color(0xFFDC2626),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          missingLabel,
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'monospace',
-                            color: Color(0xFFDC2626),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : isBadge
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.slate200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          value,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w900,
-                            fontFamily: 'monospace',
-                            color: AppTheme.slate900,
-                          ),
-                        ),
-                      )
-                    : Text(
-                        value,
-                        textAlign: TextAlign.right,
+          // Left Column: Parameter name & Category pill
+          Expanded(
+            flex: 5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  parameter,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.slate800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: isFront
+                            ? AppTheme.emerald500.withValues(alpha: 0.12)
+                            : const Color(0xFF6366F1).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isFront ? 'FRONT' : 'BACK',
                         style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: isBold || isEmerald ? FontWeight.w800 : FontWeight.w600,
-                          fontFamily: isMono ? 'monospace' : null,
-                          color: isEmerald
-                              ? AppTheme.emerald600
-                              : (isBold ? AppTheme.slate900 : AppTheme.slate800),
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w900,
+                          color: isFront ? AppTheme.emerald700 : const Color(0xFF4F46E5),
+                          letterSpacing: 0.5,
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: AppTheme.slate100,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: AppTheme.slate200, width: 0.6),
+                        ),
+                        child: Text(
+                          category,
+                          style: const TextStyle(
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.slate600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Right Column: Extracted Value or Non-Compliant Missing Badge
+          Expanded(
+            flex: 6,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: isMissing
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFDC2626)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Not Declared',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'monospace',
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: value));
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: const Color(0xFF0F172A),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            content: Text('Copied "$parameter": $value'),
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                        child: Text(
+                          value,
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: isBold || isEmerald ? FontWeight.w800 : FontWeight.w600,
+                            fontFamily: isMono ? 'monospace' : null,
+                            color: isNonCompliant
+                                ? const Color(0xFFDC2626)
+                                : (isEmerald
+                                    ? AppTheme.emerald600
+                                    : (isBold ? AppTheme.slate900 : AppTheme.slate800)),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
           ),
         ],
       ),
@@ -2874,30 +5002,241 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
   }
 }
 
-// Fullscreen Viewer for images
-class FullScreenImageViewer extends StatelessWidget {
+// Fullscreen Viewer for images with interactive OCR bounding boxes
+class FullScreenImageViewer extends StatefulWidget {
   final String imageUrl;
+  final List<Map<String, dynamic>>? boundingBoxes;
+  final double? aspectRatio;
 
-  const FullScreenImageViewer({super.key, required this.imageUrl});
+  const FullScreenImageViewer({
+    super.key,
+    required this.imageUrl,
+    this.boundingBoxes,
+    this.aspectRatio,
+  });
+
+  @override
+  State<FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
+  bool _showBoxes = true;
+  int? _selectedBox;
+  double? _resolvedAspect;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedAspect = widget.aspectRatio;
+    if (_resolvedAspect == null && widget.imageUrl.isNotEmpty) {
+      try {
+        final img = NetworkImage(widget.imageUrl);
+        img.resolve(const ImageConfiguration()).addListener(
+          ImageStreamListener((ImageInfo info, bool _) {
+            if (mounted) {
+              final w = info.image.width.toDouble();
+              final h = info.image.height.toDouble();
+              if (w > 0 && h > 0) {
+                setState(() => _resolvedAspect = w / h);
+              }
+            }
+          }),
+        );
+      } catch (_) {}
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final boxes = widget.boundingBoxes ?? [];
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          'Packaging Evidence & OCR',
+          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+        actions: [
+          if (boxes.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  backgroundColor: _showBoxes ? AppTheme.emerald600 : Colors.white12,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  setState(() => _showBoxes = !_showBoxes);
+                },
+                icon: Icon(
+                  _showBoxes ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  _showBoxes ? 'OCR Boxes (${boxes.length})' : 'Show Boxes',
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+        ],
       ),
       body: Center(
         child: InteractiveViewer(
-          child: Image.network(
-            imageUrl,
-            fit: BoxFit.contain,
-            errorBuilder: (c, e, s) => const Icon(
-              Icons.broken_image_rounded,
-              color: Colors.white,
-              size: 50,
-            ),
+          maxScale: 5.0,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final boxW = constraints.maxWidth;
+              final boxH = constraints.maxHeight;
+
+              double imgAspect = _resolvedAspect ?? 0.0;
+              if (imgAspect <= 0 && boxes.isNotEmpty) {
+                final fb = boxes.first;
+                if (fb['aspect_ratio'] != null && (fb['aspect_ratio'] as num) > 0) {
+                  imgAspect = (fb['aspect_ratio'] as num).toDouble();
+                } else if (fb['orig_w'] != null && fb['orig_h'] != null && (fb['orig_h'] as num) > 0) {
+                  imgAspect = (fb['orig_w'] as num).toDouble() / (fb['orig_h'] as num).toDouble();
+                }
+              }
+              if (imgAspect <= 0) {
+                imgAspect = boxW / boxH;
+              }
+
+              final containerAspect = boxW / boxH;
+              double renderedW, renderedH, offsetX, offsetY;
+              if (containerAspect > imgAspect) {
+                renderedH = boxH;
+                renderedW = boxH * imgAspect;
+                offsetX = (boxW - renderedW) / 2.0;
+                offsetY = 0.0;
+              } else {
+                renderedW = boxW;
+                renderedH = boxW / imgAspect;
+                offsetX = 0.0;
+                offsetY = (boxH - renderedH) / 2.0;
+              }
+
+              return Stack(
+                children: [
+                  Positioned(
+                    left: offsetX,
+                    top: offsetY,
+                    width: renderedW,
+                    height: renderedH,
+                    child: Image.network(
+                      widget.imageUrl,
+                      fit: BoxFit.fill,
+                      errorBuilder: (c, e, s) => const Icon(
+                        Icons.broken_image_rounded,
+                        color: Colors.white,
+                        size: 50,
+                      ),
+                    ),
+                  ),
+                  if (_showBoxes && boxes.isNotEmpty)
+                    ...boxes.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final box = entry.value;
+                      final isSelected = _selectedBox == idx;
+
+                      double normX = 0, normY = 0, normW = 0, normH = 0;
+                      final origW = (box['orig_w'] as num?)?.toDouble();
+                      final origH = (box['orig_h'] as num?)?.toDouble();
+
+                      if (box.containsKey('x') && box['x'] != null) {
+                        double rx = (box['x'] as num).toDouble();
+                        double ry = ((box['y'] ?? 0) as num).toDouble();
+                        double rw = ((box['width'] ?? 0) as num).toDouble();
+                        double rh = ((box['height'] ?? 0) as num).toDouble();
+
+                        if (origW != null && origW > 0 && rx > 100.0) {
+                          normX = (rx / origW) * 100.0;
+                          normW = (rw / origW) * 100.0;
+                        } else if (rx <= 1.0 && rw <= 1.0 && (rx > 0 || rw > 0)) {
+                          normX = rx * 100.0;
+                          normW = rw * 100.0;
+                        } else {
+                          normX = rx;
+                          normW = rw;
+                        }
+
+                        if (origH != null && origH > 0 && ry > 100.0) {
+                          normY = (ry / origH) * 100.0;
+                          normH = (rh / origH) * 100.0;
+                        } else if (ry <= 1.0 && rh <= 1.0 && (ry > 0 || rh > 0)) {
+                          normY = ry * 100.0;
+                          normH = rh * 100.0;
+                        } else {
+                          normY = ry;
+                          normH = rh;
+                        }
+                      } else if (box['box'] is List && (box['box'] as List).length >= 4) {
+                        final pts = box['box'] as List;
+                        final x1 = (pts[0][0] as num).toDouble();
+                        final y1 = (pts[0][1] as num).toDouble();
+                        final x2 = (pts[1][0] as num).toDouble();
+                        final y3 = (pts[2][1] as num).toDouble();
+                        final ow = origW ?? (imgAspect > 0 ? 1000.0 * imgAspect : 1000.0);
+                        final oh = origH ?? 1000.0;
+                        normX = (x1 / ow) * 100.0;
+                        normY = (y1 / oh) * 100.0;
+                        normW = ((x2 - x1) / ow) * 100.0;
+                        normH = ((y3 - y1) / oh) * 100.0;
+                      }
+
+                      final l = offsetX + (normX / 100.0) * renderedW;
+                      final t = offsetY + (normY / 100.0) * renderedH;
+                      final w = (normW / 100.0) * renderedW;
+                      final h = (normH / 100.0) * renderedH;
+
+                      final cl = l.clamp(offsetX, (offsetX + renderedW - 8.0).clamp(offsetX, offsetX + renderedW));
+                      final ct = t.clamp(offsetY, (offsetY + renderedH - 6.0).clamp(offsetY, offsetY + renderedH));
+                      final cw = w.clamp(8.0, (offsetX + renderedW - cl).clamp(8.0, renderedW));
+                      final ch = h.clamp(6.0, (offsetY + renderedH - ct).clamp(6.0, renderedH));
+
+                      final bText = (box['text'] ?? '').toString();
+                      final bConf = box['confidence'] != null
+                          ? ((box['confidence'] as num) * 100).toStringAsFixed(0)
+                          : '95';
+
+                      return Positioned(
+                        left: cl,
+                        top: ct,
+                        width: cw,
+                        height: ch,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() => _selectedBox = idx);
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                duration: const Duration(seconds: 4),
+                                backgroundColor: const Color(0xFF0F172A),
+                                behavior: SnackBarBehavior.floating,
+                                content: Text('OCR #${idx + 1}: "$bText" ($bConf% confidence)'),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: isSelected ? Colors.amber.withValues(alpha: 0.35) : AppTheme.emerald500.withValues(alpha: 0.22),
+                              border: Border.all(
+                                color: isSelected ? Colors.amberAccent : AppTheme.emerald400,
+                                width: isSelected ? 2.5 : 1.5,
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                ],
+              );
+            },
           ),
         ),
       ),

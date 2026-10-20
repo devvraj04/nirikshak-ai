@@ -73,6 +73,84 @@ const MOCK_SCANS: ScanItem[] = [
       front: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281691?w=500&auto=format&fit=crop&q=60',
       back: 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=500&auto=format&fit=crop&q=60'
     },
+    ocr_transcriptions: [
+      {
+        image_side: 'front',
+        image_url: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281691?w=500&auto=format&fit=crop&q=60',
+        detected_text: 'HALDIRAM\'S\nALOO BHUJIA\nCRISPY SPICED POTATO NOODLES\nNET WT: 400 gms\n100% VEG',
+        confidence: 0.962,
+        boxes_count: 5,
+        lines_detected: 5,
+        bounding_boxes: [
+          { text: "HALDIRAM'S", bbox: [[160, 48], [340, 48], [340, 80], [160, 80]], score: 0.98, normalized: { x: 32, y: 10, width: 36, height: 8 } },
+          { text: "ALOO BHUJIA", bbox: [[120, 105], [380, 105], [380, 155], [120, 155]], score: 0.99, normalized: { x: 24, y: 22, width: 52, height: 11 } },
+          { text: "CRISPY SPICED POTATO NOODLES", bbox: [[90, 180], [410, 180], [410, 215], [90, 215]], score: 0.95, normalized: { x: 18, y: 37, width: 64, height: 8 } },
+          { text: "NET WT: 400 gms", bbox: [[140, 350], [360, 350], [360, 385], [140, 385]], score: 0.96, normalized: { x: 28, y: 72, width: 44, height: 7 } },
+          { text: "100% VEG", bbox: [[340, 410], [450, 410], [450, 440], [340, 440]], score: 0.97, normalized: { x: 68, y: 84, width: 24, height: 6 } },
+        ]
+      },
+      {
+        image_side: 'back',
+        image_url: 'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=500&auto=format&fit=crop&q=60',
+        detected_text: 'MAXIMUM RETAIL PRICE ₹ 110.00\n(INCL. OF ALL TAXES)\nBATCH NO: AB-0926-X1\nMFD: 08/2026\nUSE BY: 02/2027\nMFD BY: HALDIRAM SNACKS PVT LTD\nB-1/H-3, MOHAN CO-OP IND ESTATE, NEW DELHI - 110044\nCUSTOMER CARE: care@haldiram.com | 1800-102-3344\nFSSAI LIC NO. 10012011000673',
+        confidence: 0.948,
+        boxes_count: 9,
+        lines_detected: 9,
+        bounding_boxes: [
+          { text: "MAXIMUM RETAIL PRICE ₹ 110.00", bbox: [[70, 60], [430, 60], [430, 95], [70, 95]], score: 0.97, normalized: { x: 14, y: 12, width: 72, height: 7 } },
+          { text: "(INCL. OF ALL TAXES)", bbox: [[130, 100], [370, 100], [370, 125], [130, 125]], score: 0.94, normalized: { x: 26, y: 20, width: 48, height: 5 } },
+          { text: "BATCH NO: AB-0926-X1", bbox: [[70, 140], [320, 140], [320, 170], [70, 170]], score: 0.96, normalized: { x: 14, y: 28, width: 50, height: 6 } },
+          { text: "MFD: 08/2026", bbox: [[70, 180], [245, 180], [245, 210], [70, 210]], score: 0.98, normalized: { x: 14, y: 36, width: 35, height: 6 } },
+          { text: "USE BY: 02/2027", bbox: [[275, 180], [450, 180], [450, 210], [275, 210]], score: 0.97, normalized: { x: 55, y: 36, width: 35, height: 6 } },
+          { text: "MFD BY: HALDIRAM SNACKS PVT LTD", bbox: [[60, 230], [440, 230], [440, 260], [60, 260]], score: 0.95, normalized: { x: 12, y: 46, width: 76, height: 6 } },
+          { text: "B-1/H-3, MOHAN CO-OP IND ESTATE, NEW DELHI - 110044", bbox: [[50, 270], [450, 270], [450, 300], [50, 300]], score: 0.92, normalized: { x: 10, y: 54, width: 80, height: 6 } },
+          { text: "CUSTOMER CARE: care@haldiram.com | 1800-102-3344", bbox: [[50, 320], [450, 320], [450, 350], [50, 350]], score: 0.96, normalized: { x: 10, y: 64, width: 80, height: 6 } },
+          { text: "FSSAI LIC NO. 10012011000673", bbox: [[90, 380], [410, 380], [410, 410], [90, 410]], score: 0.94, normalized: { x: 18, y: 76, width: 64, height: 6 } },
+        ]
+      }
+    ],
+    brand_claims: [
+      {
+        claim: "100% Veg (Certified Vegetarian)",
+        category: "Dietary & Ethical",
+        context: "Front packaging emblem with green dot in square",
+        verification_note: "Complies with statutory vegetarian declaration symbol",
+        highlight: true
+      },
+      {
+        claim: "Crispy Spiced Potato Noodles",
+        category: "Taste & Sensory",
+        context: "Front brand header subtitle",
+        verification_note: "Distinctive recipe sensory assertion",
+        highlight: true
+      },
+      {
+        claim: "Zero Artificial Flavours or Colours",
+        category: "Health & Purity",
+        context: "Side panel disclosure",
+        verification_note: "Voluntary marketing claim subject to FSSAI ingredient compliance",
+        highlight: true
+      }
+    ],
+    summary_sentences: [
+      "The package represents Haldiram's Aloo Bhujia (Crispy Spiced Potato Noodles) with a declared net quantity of 400 g and an MRP of ₹ 110.00 inclusive of all taxes.",
+      "Manufactured by Haldiram Snacks Pvt Ltd in August 2026 with expiry in February 2027 under batch number AB-0926-X1.",
+      "Customer care support is provided via phone at 1800-102-3344 and email at care@haldiram.com.",
+      "Prominent Brand Claims Highlight: The packaging prominently asserts '100% Veg' and 'Crispy Spiced Potato Noodles' with 'Zero Artificial Flavours' as primary brand guarantees."
+    ],
+    declarations_table: [
+      { attribute: "Generic Product Name", value: "Aloo Bhujia Extruded Snack", category: "Statutory Declaration", is_brand_claim: false, highlight: false },
+      { attribute: "Maximum Retail Price (MRP)", value: "₹ 110.00 (Incl. of all taxes)", category: "Statutory Declaration", is_brand_claim: false, highlight: false },
+      { attribute: "Net Quantity", value: "400 gms (Violates standard symbol 'g')", category: "Statutory Declaration", is_brand_claim: false, highlight: false },
+      { attribute: "Date of Manufacture", value: "08/2026", category: "Statutory Declaration", is_brand_claim: false, highlight: false },
+      { attribute: "Best Before / Expiry", value: "02/2027", category: "Statutory Declaration", is_brand_claim: false, highlight: false },
+      { attribute: "Batch Identifier", value: "AB-0926-X1", category: "Statutory Declaration", is_brand_claim: false, highlight: false },
+      { attribute: "Manufacturer Address", value: "Haldiram Snacks Pvt Ltd, Mohan Co-op Ind Estate, New Delhi - 110044", category: "Statutory Declaration", is_brand_claim: false, highlight: false },
+      { attribute: "Consumer Care Support", value: "care@haldiram.com | 1800-102-3344", category: "Contact & Care", is_brand_claim: false, highlight: false },
+      { attribute: "Brand Claim: Dietary & Ethical", value: "100% Veg (Certified Vegetarian Snack)", category: "Brand Claim", is_brand_claim: true, highlight: true },
+      { attribute: "Brand Claim: Sensory & Character", value: "Crispy Spiced Potato Noodles", category: "Brand Claim", is_brand_claim: true, highlight: true },
+      { attribute: "Brand Claim: Health & Purity", value: "Zero Artificial Flavours or Colours", category: "Brand Claim", is_brand_claim: true, highlight: true }
+    ],
     compliance_summary: {
       passed_rules: 4,
       failed_rules: 2,

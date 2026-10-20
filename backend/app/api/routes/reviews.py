@@ -37,7 +37,8 @@ async def get_review_queue(
     Lists scans with FAIL or REVIEW compliance status.
     """
     stmt = select(Scan, Declaration, Review).options(
-        selectinload(Scan.violations).selectinload(Violation.rule)
+        selectinload(Scan.violations).selectinload(Violation.rule),
+        selectinload(Scan.ocr_results),
     ).outerjoin(
         Declaration, Scan.id == Declaration.scan_id
     ).outerjoin(
@@ -77,18 +78,47 @@ async def get_review_queue(
                 "citation": citation,
             })
             
+        ocr_transcriptions = [
+            {
+                "image_side": ocr.image_side,
+                "image_url": ocr.image_url,
+                "detected_text": ocr.processed_text or ocr.raw_text,
+                "confidence": ocr.confidence,
+                "boxes_count": len(ocr.bounding_boxes) if isinstance(ocr.bounding_boxes, list) else 0,
+                "bounding_boxes": ocr.bounding_boxes or [],
+            }
+            for ocr in (s.ocr_results or [])
+        ]
+        all_detected_text = "\n\n".join(
+            [f"[{t['image_side'].upper() if t['image_side'] else 'LABEL'}]\n{t['detected_text']}" 
+             for t in ocr_transcriptions if t['detected_text']]
+        )
+
+        raw_decl = d.raw_declarations or {} if d else {}
+        llm_dict = raw_decl.get("llm", {}) if isinstance(raw_decl.get("llm"), dict) else {}
+        extracted_f = llm_dict.get("extracted_fields", llm_dict) if llm_dict else {}
+
+        brand_claims = raw_decl.get("brand_claims") or llm_dict.get("brand_claims") or []
+        summary_sentences = raw_decl.get("summary_sentences") or llm_dict.get("summary_sentences") or []
+        declarations_table = raw_decl.get("declarations_table") or llm_dict.get("declarations_table") or []
+
         queue.append({
             "scan_id": str(s.id),
             "status": s.status.value,
             "overall_compliance": s.overall_compliance.value if s.overall_compliance else None,
             "image_urls": s.image_urls,
+            "all_detected_text": all_detected_text,
+            "ocr_transcriptions": ocr_transcriptions,
             "created_at": s.created_at.isoformat(),
             "manufacturer_name": d.manufacturer_name if d else None,
             "product_name": d.generic_product_name if d else None,
             "is_resolved": r is not None,
             "decision": r.decision.value if r else None,
-            "extracted_declarations": d.raw_declarations.get("llm", {}).get("extracted_fields", d.raw_declarations.get("llm", {})) if d and d.raw_declarations else {},
-            "product_category": d.raw_declarations.get("llm", {}).get("product_category", "Unknown") if d and d.raw_declarations else "Unknown",
+            "extracted_declarations": extracted_f,
+            "brand_claims": brand_claims,
+            "summary_sentences": summary_sentences,
+            "declarations_table": declarations_table,
+            "product_category": llm_dict.get("product_category", "Unknown"),
             "compliance_summary": {
                 "passed_rules": passed_count,
                 "failed_rules": failed_count,

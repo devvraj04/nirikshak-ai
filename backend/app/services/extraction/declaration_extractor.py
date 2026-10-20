@@ -3,14 +3,14 @@ NIRIKSHAK AI - Layered Declaration Extraction Service.
 
 Extracts mandatory Legal Metrology product declarations from OCR text using a 3-layer pipeline:
 - Layer 1: Regex & Deterministic Extraction
-- Layer 2: Schema-based Groq LLM Extraction
+- Layer 2: Groq LLM Full-Content Extraction (Zero Hallucination, Nothing Hidden)
 - Layer 3: Validation & Field Normalization
 """
 
 import json
 import re
-from dataclasses import asdict, dataclass
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 from groq import Groq
 
@@ -41,6 +41,23 @@ class ExtractedDeclarations:
     expiry_date: Optional[str] = None
     batch_number: Optional[str] = None
     product_category: str = "Unknown"
+    brand_claims: Optional[List[Dict[str, Any]]] = None
+    summary_sentences: Optional[List[str]] = None
+    declarations_table: Optional[List[Dict[str, Any]]] = None
+    front_panel_table: Optional[List[Dict[str, Any]]] = None
+    back_panel_table: Optional[List[Dict[str, Any]]] = None
+    all_key_value_pairs: Optional[List[Dict[str, Any]]] = None
+    # ---- Full verbatim text blocks (not truncated, not summarised) ----
+    ingredients_list: Optional[str] = None
+    nutrition_table: Optional[List[Dict[str, Any]]] = None
+    allergen_info: Optional[str] = None
+    storage_instructions: Optional[str] = None
+    usage_instructions: Optional[str] = None
+    composition: Optional[str] = None
+    certifications: Optional[List[str]] = None
+    legal_disclaimer: Optional[str] = None
+    other_text_blocks: Optional[List[Dict[str, str]]] = None
+    # -------------------------------------------------------------------
     dynamic_fields: Dict[str, Any] = None
     field_confidence: Dict[str, float] = None
     raw_extractions: Dict[str, Any] = None
@@ -61,10 +78,9 @@ class DeclarationExtractor:
     # LAYER 1: REGEX EXTRACTION
     # =========================================================================
     def extract_layer1_regex(self, text: str) -> Dict[str, Any]:
-        """Extract fields using regex patterns."""
+        """Extract key fields using regex patterns (fast, deterministic fallback)."""
         results = {}
 
-        # 1. MRP Extraction
         mrp_match = re.search(
             r"(?i)(?:mrp|rs\.?|₹|max\.?\s*retail\s*price)[\s:]*(?:incl\.?\s*of\s*all\s*taxes)?[\s:]*₹?\s*(\d+(?:\.\d{1,2})?)",
             text,
@@ -76,7 +92,6 @@ class DeclarationExtractor:
             except ValueError:
                 pass
 
-        # 2. Net Quantity & Unit Extraction
         net_qty_match = re.search(
             r"(?i)(?:net\s*(?:qty|quantity|weight|wt)|content)[\s:]*(\d+(?:\.\d+)?)\s*(g|kg|ml|l|liter|litres|pcs|n|units?)",
             text,
@@ -88,7 +103,6 @@ class DeclarationExtractor:
             except ValueError:
                 pass
 
-        # 3. Manufacture Date (Month / Year)
         date_match = re.search(
             r"(?i)(?:mfd|pkd|mfg|manufactured|packed|date)[\s:]*(\d{1,2})[/.-](\d{2,4})",
             text,
@@ -105,12 +119,10 @@ class DeclarationExtractor:
             except ValueError:
                 pass
 
-        # 4. Consumer Care Email
         email_match = re.search(r"[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}", text)
         if email_match:
             results["consumer_care_email"] = email_match.group(0)
 
-        # 5. Consumer Care Phone
         phone_match = re.search(
             r"(?i)(?:phone|tel|contact|helpline|customer\s*care|call)[\s:]*([+\d\s-]{8,15})",
             text,
@@ -120,7 +132,6 @@ class DeclarationExtractor:
             if len(re.sub(r"\D", "", phone_str)) >= 8:
                 results["consumer_care_phone"] = phone_str
 
-        # 6. Batch / Lot Number Extraction
         batch_match = re.search(
             r"(?i)(?:b\.?\s*no\.?|batch\s*(?:no\.?|number|#)?|lot\s*(?:no\.?|#)?)[\s:]*([A-Za-z0-9\/-]+)",
             text,
@@ -130,67 +141,151 @@ class DeclarationExtractor:
             if len(b_val) >= 2 and not b_val.lower().startswith("date"):
                 results["batch_number"] = b_val
 
+        # Quick grab of full ingredients section
+        ingr_match = re.search(
+            r"(?i)(?:ingredients?|composition|contains?)\s*[:\-]?\s*([\s\S]{10,800}?)(?=\n\n|\Z|(?:nutritional|storage|allergen|best before|mfg|manufactured|packed|mrp|max\.?\s*retail))",
+            text,
+        )
+        if ingr_match:
+            results["ingredients_list_regex"] = ingr_match.group(1).strip()
+
+        allergen_match = re.search(
+            r"(?i)(?:allerg(?:en|y)\s*(?:advice|info(?:rmation)?|declaration)?|may\s+contain|contains?.*?(?:milk|wheat|soy|peanut|nut|gluten|egg|fish|shellfish))[\s\S]{0,400}?(?=\n\n|\Z)",
+            text,
+        )
+        if allergen_match:
+            results["allergen_info_regex"] = allergen_match.group(0).strip()
+
         return results
 
     # =========================================================================
-    # LAYER 2: GROQ LLM SCHEMA EXTRACTION
+    # LAYER 2: GROQ LLM FULL-CONTENT EXTRACTION (ZERO HALLUCINATION)
     # =========================================================================
     def extract_layer2_llm(self, text: str) -> Dict[str, Any]:
-        """Extract structured declarations using Groq Llama 3.1 LLM."""
+        """
+        Extract ALL structured content from packaging OCR using Groq LLaMA.
+        The LLM reproduces every piece of text verbatim — no truncation, no summaries,
+        no invented values. Nothing is hidden.
+        """
         if not self.groq_client:
             logger.info("Groq API key not set or invalid; skipping LLM extraction layer.")
             return {}
 
-        prompt = f"""
-You are an expert Legal Metrology compliance extraction AI.
-Analyze the following OCR text extracted from product packaging. 
+        prompt = (
+            "You are a strict packaging information extraction engine with ZERO-HALLUCINATION policy.\n"
+            "You are given raw OCR text from a product package (may include front and back labels).\n\n"
+            "===========================================================\n"
+            "ABSOLUTE RULES — FOLLOW EVERY RULE WITHOUT EXCEPTION:\n"
+            "===========================================================\n"
+            "RULE 1 — ZERO HALLUCINATION: Extract ONLY text, numbers, and phrases that LITERALLY appear in the OCR below.\n"
+            "          Do NOT invent, guess, paraphrase, or add anything not in the OCR text. Not even a single word.\n"
+            "RULE 2 — VERBATIM REPRODUCTION: For large text blocks (ingredients, nutrition, composition, storage,\n"
+            "          allergen, instructions, disclaimer), copy the text EXACTLY as it appears in the OCR.\n"
+            "          Do NOT truncate, summarize, or shorten them. Every character matters.\n"
+            "RULE 3 — NOTHING HIDDEN: Every single piece of text in the OCR must appear somewhere in your output.\n"
+            "          Nothing should be skipped. If a section does not fit any named field, put it in 'other_text_blocks'.\n"
+            "RULE 4 — PANEL ASSIGNMENT: Use [FRONT LABEL] and [BACK LABEL] markers (if present) to assign items.\n"
+            "          If no markers, use context clues to determine front vs back.\n"
+            "RULE 5 — NULL FOR MISSING: If a field is genuinely not present in the OCR, set it to null.\n"
+            "          Never fabricate a value.\n\n"
+            "Return a single valid JSON object with EXACTLY these fields:\n\n"
+            "{\n"
+            '  "product_category": "string inferred from product type in OCR (e.g. Snack Food, Biscuit, Beverage, Cosmetic)",\n'
+            '  "extracted_fields": {\n'
+            '    "generic_product_name": "verbatim from OCR or null",\n'
+            '    "brand_name": "verbatim from OCR or null",\n'
+            '    "manufacturer_name": "verbatim from OCR or null",\n'
+            '    "packer_name": "verbatim from OCR or null",\n'
+            '    "importer_name": "verbatim from OCR or null",\n'
+            '    "net_quantity": "number float or null",\n'
+            '    "unit": "g or kg or ml or l or pcs or null",\n'
+            '    "mrp": "number float or null",\n'
+            '    "currency": "INR",\n'
+            '    "manufacture_month": "integer 1-12 or null",\n'
+            '    "manufacture_year": "integer or null",\n'
+            '    "expiry_date": "verbatim from OCR or null",\n'
+            '    "batch_number": "verbatim from OCR or null",\n'
+            '    "consumer_care_name": "verbatim from OCR or null",\n'
+            '    "consumer_care_phone": "verbatim from OCR or null",\n'
+            '    "consumer_care_email": "verbatim from OCR or null",\n'
+            '    "consumer_care_address": "verbatim full address from OCR or null",\n'
+            '    "fssai_license_number": "verbatim from OCR or null",\n'
+            '    "country_of_origin": "verbatim from OCR or null",\n'
+            '    "barcode": "verbatim from OCR or null"\n'
+            "  },\n\n"
+            '  "ingredients_list": "COMPLETE VERBATIM text of the Ingredients/Composition/Contains section EXACTLY as printed - word for word, comma for comma. null if not present.",\n\n'
+            '  "composition": "If there is a separate Composition section distinct from Ingredients, copy it verbatim here. null if same as ingredients_list or not present.",\n\n'
+            '  "nutrition_table": [\n'
+            "    {\n"
+            '      "nutrient": "nutrient name verbatim from OCR",\n'
+            '      "per_serving": "value verbatim or null",\n'
+            '      "per_100g": "value verbatim or null",\n'
+            '      "unit": "unit string verbatim or null"\n'
+            "    }\n"
+            "  ],\n\n"
+            '  "allergen_info": "COMPLETE VERBATIM allergen declaration from OCR (e.g. Contains: Milk, Wheat. May contain traces of Peanuts.). null if not present.",\n\n'
+            '  "storage_instructions": "COMPLETE VERBATIM storage/handling instructions from OCR. null if not present.",\n\n'
+            '  "usage_instructions": "COMPLETE VERBATIM usage, preparation, serving, or directions-for-use text from OCR. null if not present.",\n\n'
+            '  "certifications": ["list of verbatim certification/mark strings found in OCR. Empty list [] if none."],\n\n'
+            '  "legal_disclaimer": "COMPLETE VERBATIM legal disclaimer, advisory note, or statutory warning from OCR. null if not present.",\n\n'
+            '  "other_text_blocks": [\n'
+            "    {\n"
+            '      "label": "Section heading or description from OCR",\n'
+            '      "text": "COMPLETE VERBATIM text of that section",\n'
+            '      "panel": "front or back"\n'
+            "    }\n"
+            "  ],\n\n"
+            '  "front_panel_table": [\n'
+            "    {\n"
+            '      "key": "field name",\n'
+            '      "value": "verbatim value from OCR",\n'
+            '      "category": "one of: Statutory Declaration, Brand Identity, Brand Claim, Product Identity, Statutory Emblem",\n'
+            '      "is_brand_claim": true\n'
+            "    }\n"
+            "  ],\n\n"
+            '  "back_panel_table": [\n'
+            "    {\n"
+            '      "key": "field name",\n'
+            '      "value": "verbatim value from OCR",\n'
+            '      "category": "one of: Statutory Declaration, Consumer Care, Regulatory License, Nutrition, Ingredients, Storage, Allergen, Instructions, Contact",\n'
+            '      "is_brand_claim": false\n'
+            "    }\n"
+            "  ],\n\n"
+            '  "all_key_value_pairs": [\n'
+            "    {\n"
+            '      "key": "parameter name",\n'
+            '      "value": "verbatim value from OCR",\n'
+            '      "panel": "front or back or general",\n'
+            '      "category": "statutory or nutrition or ingredients or contact or claim or instructions or allergen or certification or identity or other",\n'
+            '      "is_brand_claim": false\n'
+            "    }\n"
+            "  ],\n\n"
+            '  "brand_claims": [\n'
+            "    {\n"
+            '      "claim": "EXACT VERBATIM promotional/quality/health/dietary claim from OCR",\n'
+            '      "category": "e.g. Health and Nutrition, Purity and Quality, Taste and Sensory, Dietary",\n'
+            '      "panel": "front or back",\n'
+            '      "verification_note": "Voluntary marketing claim. Subject to consumer verification.",\n'
+            '      "highlight": true\n'
+            "    }\n"
+            "  ],\n\n"
+            '  "summary_sentences": [\n'
+            '    "3-5 sentences describing the product STRICTLY based on what is in the raw OCR. No invented facts."\n'
+            "  ],\n\n"
+            '  "declarations_table": [\n'
+            "    {\n"
+            '      "attribute": "declaration name",\n'
+            '      "value": "verbatim value",\n'
+            '      "category": "Statutory Declaration or Brand Claim or Specification or Nutritional or Ingredients or Contact",\n'
+            '      "panel": "front or back",\n'
+            '      "is_brand_claim": false,\n'
+            '      "highlight": false\n'
+            "    }\n"
+            "  ]\n"
+            "}\n\n"
+            f"RAW OCR TEXT (extract everything from this - miss nothing):\n\"\"\"\n{text}\n\"\"\""
+        )
 
-Your task is to identify the Product Category and dynamically extract ALL factual product declarations and fields present.
-
-CRITICAL INSTRUCTIONS:
-1. Product Category: Identify the product type (e.g., "Food", "Cosmetics", "Book", "Electronics").
-2. Dynamic Field Extraction: Extract ALL relevant declarations. Do not limit yourself to a predefined list.
-3. Standardized Naming: IF APPLICABLE, you MUST use these exact keys: manufacturer_name, packer_name, importer_name, generic_product_name, net_quantity, unit, mrp, manufacture_month, manufacture_year, expiry_date, consumer_care_name, consumer_care_phone, consumer_care_email, consumer_care_address, batch_number.
-4. Cross-Image Logic Deduction: Logically merge information split across labels.
-
-CRITICAL EDGE CASES & FEW-SHOT EXAMPLES:
-
-A. MRP (Maximum Retail Price) Edge Cases:
-- The MRP MUST be the highest absolute currency value for the entire pack.
-- IGNORE unit-based pricing or piece counts. 
-- Example: "MRP Rs. 164.00 (per 10 capsules)" -> You MUST extract `164.00`, NOT `10`.
-- Example: "₹ 50.00 / 100g" -> You MUST extract `50.00`.
-- Example: "Incl. of all taxes Rs 250" -> You MUST extract `250`.
-
-B. Complex Date Formats & Relative Expiry:
-- The keys `manufacture_month` and `manufacture_year` MUST be integers. `expiry_date` MUST be a string (ISO `YYYY-MM`).
-- Example: "Mfg 10/24" -> "manufacture_month": 10, "manufacture_year": 2024
-- Example: "FEB 26" -> "manufacture_month": 2, "manufacture_year": 2026
-- Example: "B.No. A123 M.D. 11/2023" -> "manufacture_month": 11, "manufacture_year": 2023
-- RELATIVE EXPIRY: If expiry is relative, calculate the absolute date based on Mfg Date.
-- Example: If Mfg is "10/24" and Expiry is "Best before 12 Months from manufacture", calculate and return "expiry_date": "2025-10".
-- Example: "JUL 27" -> "expiry_date": "2027-07"
-- JOINED DATES: If multiple dates are printed on one line (e.g. "Mfg: FEB. 26; JUL. 27" with a blank Exp label), the first is Mfg and the second is Exp!
-- Example: "FEB. 26; JUL. 27" -> "manufacture_month": 2, "manufacture_year": 2026, "expiry_date": "2027-07"
-
-C. OCR Typos & Misspellings:
-- OCR often misreads characters. You MUST be lenient and infer the correct meaning.
-- Example: "Customer Care nop. 1800-123" -> This is a typo for "no." You MUST extract "consumer_care_phone": "1800-123".
-- If you see anything resembling a phone number near "Customer Care" (even with typos like "nop", "n0.", "cstmr"), extract it as `consumer_care_phone`.
-
-Return ONLY a valid JSON object in this exact format (use null if a specific field is entirely missing, but do not include it if it's completely irrelevant):
-{{
-  "product_category": "string",
-  "extracted_fields": {{
-    "key": "value"
-  }}
-}}
-
-OCR TEXT TO PROCESS:
-\"\"\"
-{text}
-\"\"\"
-"""
         try:
             candidate_models = [settings.llm_model, "groq/compound-mini", "groq/compound", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
             models_to_try = [m for m in dict.fromkeys(candidate_models) if m]
@@ -200,7 +295,15 @@ OCR TEXT TO PROCESS:
                 try:
                     chat_completion = self.groq_client.chat.completions.create(
                         messages=[
-                            {"role": "system", "content": "You are a precise JSON extraction engine. Respond with raw JSON only."},
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are a strict packaging label extraction engine. "
+                                    "Respond with ONLY valid JSON. "
+                                    "Never hallucinate. Never truncate ingredient lists or nutritional tables. "
+                                    "Copy all text verbatim from the OCR input."
+                                ),
+                            },
                             {"role": "user", "content": prompt},
                         ],
                         model=model_name,
@@ -217,31 +320,471 @@ OCR TEXT TO PROCESS:
                 return {}
 
             parsed = json.loads(content)
-            logger.info("Groq LLM extraction succeeded.")
+            logger.info("Groq LLM full-content extraction succeeded.")
             return parsed
         except Exception as e:
             logger.error(f"Groq LLM extraction error: {e}")
             return {}
 
     # =========================================================================
+    # DETERMINISTIC BRAND CLAIMS & SUMMARY FALLBACK HELPERS
+    # =========================================================================
+    @staticmethod
+    def _detect_brand_claims(ocr_text: str) -> List[Dict[str, Any]]:
+        """Extract brand marketing claims, health promises, and slogans from OCR text."""
+        claims = []
+        if not ocr_text:
+            return claims
+
+        claim_patterns = [
+            (r"(?i)\b(100%\s*(?:pure|natural|veg|vegetarian|organic|whole\s*wheat|cotton|recycled))\b", "Purity & Quality"),
+            (r"(?i)\b(no\s*(?:added\s*sugar|preservatives|artificial\s*flavou?rs?|msg|colors?|colours?|cholesterol))\b", "Health & Ingredients"),
+            (r"(?i)\b(zero\s*(?:trans\s*fat|cholesterol|sugar|calories))\b", "Nutrition & Health"),
+            (r"(?i)\b(rich\s*in\s*(?:protein|fiber|fibre|calcium|iron|vitamins?|antioxidants?))\b", "Nutritional Benefit"),
+            (r"(?i)\b(clinically\s*(?:proven|tested|approved))\b", "Clinical & Scientific"),
+            (r"(?i)\b(dermatologically\s*(?:tested|approved))\b", "Safety & Testing"),
+            (r"(?i)\b(traditional\s*(?:recipe|indian|taste|blend))\b", "Heritage & Taste"),
+            (r"(?i)\b(crispy\s*(?:spiced|fried|baked)?\s*(?:potato|noodles|chips|flavour))\b", "Taste & Sensory"),
+            (r"(?i)\b(guaranteed\s*(?:quality|freshness|purity|satisfaction))\b", "Brand Guarantee"),
+            (r"(?i)\b(authentic\s*(?:taste|flavor|flavour|ingredients?))\b", "Authenticity"),
+            (r"(?i)\b(eco\s*friendly|biodegradable|sustainable|cruelty\s*free)\b", "Environmental & Ethics"),
+            (r"(?i)\b(best\s*quality|premium\s*quality|finest\s*quality)\b", "Quality Assertion"),
+        ]
+
+        seen = set()
+        for line in ocr_text.splitlines():
+            line_str = line.strip()
+            if not line_str or line_str.startswith("["):
+                continue
+            for pattern, cat in claim_patterns:
+                match = re.search(pattern, line_str)
+                if match:
+                    claim_text = line_str
+                    if len(claim_text) > 80:
+                        claim_text = match.group(0)
+                    if claim_text.lower() not in seen:
+                        seen.add(claim_text.lower())
+                        claims.append({
+                            "claim": claim_text,
+                            "category": cat,
+                            "context": f"Package disclosure: \"{line_str}\"",
+                            "verification_note": f"Voluntary marketing claim under {cat}. Subject to consumer verification under CP Act 2019.",
+                            "highlight": True,
+                        })
+        return claims
+
+    @staticmethod
+    def _build_front_panel_table(merged: Dict[str, Any], brand_claims: List[Dict[str, Any]], ocr_text: str) -> List[Dict[str, Any]]:
+        """Construct structured table of key-value pairs strictly present on the FRONT face."""
+        table = []
+        if merged.get("generic_product_name"):
+            table.append({
+                "key": "Generic Product Name",
+                "value": str(merged["generic_product_name"]),
+                "category": "Statutory Declaration",
+                "panel": "front",
+                "is_brand_claim": False,
+            })
+        if merged.get("brand_name"):
+            table.append({
+                "key": "Brand Name",
+                "value": str(merged["brand_name"]),
+                "category": "Brand Identity",
+                "panel": "front",
+                "is_brand_claim": False,
+            })
+        if merged.get("net_quantity") is not None:
+            unit_val = merged.get("unit") or ""
+            table.append({
+                "key": "Net Quantity",
+                "value": f"{merged['net_quantity']} {unit_val}".strip(),
+                "category": "Statutory Declaration",
+                "panel": "front",
+                "is_brand_claim": False,
+            })
+        lower_ocr = ocr_text.lower()
+        if "100% veg" in lower_ocr or "vegetarian" in lower_ocr or "pure veg" in lower_ocr:
+            table.append({
+                "key": "Dietary Indicator",
+                "value": "Vegetarian (Green Dot Emblem)",
+                "category": "Statutory Emblem",
+                "panel": "front",
+                "is_brand_claim": False,
+            })
+        elif "non-veg" in lower_ocr or "non veg" in lower_ocr:
+            table.append({
+                "key": "Dietary Indicator",
+                "value": "Non-Vegetarian (Brown Dot Emblem)",
+                "category": "Statutory Emblem",
+                "panel": "front",
+                "is_brand_claim": False,
+            })
+        for claim_obj in brand_claims:
+            claim_text = claim_obj.get("claim") or ""
+            cat = claim_obj.get("category") or "Quality Assertion"
+            if claim_text:
+                table.append({
+                    "key": f"Front Claim: {cat}",
+                    "value": f"\u201c{claim_text}\u201d",
+                    "category": "Brand Claim",
+                    "panel": "front",
+                    "is_brand_claim": True,
+                })
+        return table
+
+    @staticmethod
+    def _build_back_panel_table(merged: Dict[str, Any], brand_claims: List[Dict[str, Any]], ocr_text: str) -> List[Dict[str, Any]]:
+        """Construct structured table of key-value pairs strictly present on the BACK face."""
+        table = []
+        if merged.get("mrp") is not None:
+            cur = merged.get("currency") or "INR"
+            symbol = "\u20b9" if cur == "INR" else cur
+            table.append({
+                "key": "Maximum Retail Price (MRP)",
+                "value": f"{symbol} {merged['mrp']} (Incl. of all taxes)",
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        m = merged.get("manufacture_month")
+        y = merged.get("manufacture_year")
+        if m and y:
+            table.append({
+                "key": "Date of Manufacture / Packing",
+                "value": f"{m:02d}/{y}",
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        elif y:
+            table.append({
+                "key": "Year of Manufacture",
+                "value": str(y),
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("expiry_date"):
+            table.append({
+                "key": "Expiry / Best Before Date",
+                "value": str(merged["expiry_date"]),
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("batch_number"):
+            table.append({
+                "key": "Batch / Lot Identifier",
+                "value": str(merged["batch_number"]),
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("manufacturer_name"):
+            table.append({
+                "key": "Manufacturer Name & Address",
+                "value": str(merged["manufacturer_name"]),
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("packer_name"):
+            table.append({
+                "key": "Packer Details",
+                "value": str(merged["packer_name"]),
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("importer_name"):
+            table.append({
+                "key": "Importer Details",
+                "value": str(merged["importer_name"]),
+                "category": "Statutory Declaration",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("consumer_care_phone"):
+            table.append({
+                "key": "Consumer Helpline",
+                "value": str(merged["consumer_care_phone"]),
+                "category": "Consumer Care",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("consumer_care_email"):
+            table.append({
+                "key": "Consumer Email",
+                "value": str(merged["consumer_care_email"]),
+                "category": "Consumer Care",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        if merged.get("consumer_care_address"):
+            table.append({
+                "key": "Consumer Care Address",
+                "value": str(merged["consumer_care_address"]),
+                "category": "Consumer Care",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        fssai_match = re.search(r"(?i)(?:fssai|lic\.?\s*no\.?)[\s:]*([0-9]{14})", ocr_text)
+        if fssai_match:
+            table.append({
+                "key": "FSSAI License No.",
+                "value": fssai_match.group(1),
+                "category": "Regulatory License",
+                "panel": "back",
+                "is_brand_claim": False,
+            })
+        return table
+
+    @staticmethod
+    def _build_all_key_value_pairs(
+        merged: Dict[str, Any],
+        brand_claims: List[Dict[str, Any]],
+        front_table: List[Dict[str, Any]],
+        back_table: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Construct comprehensive master list of all key-value pairs without loss of detail."""
+        pairs = []
+        seen_keys: set = set()
+
+        for item in front_table:
+            k = item.get("key") or item.get("attribute") or ""
+            if k and k.lower() not in seen_keys:
+                seen_keys.add(k.lower())
+                pairs.append({
+                    "key": k,
+                    "value": str(item.get("value") or ""),
+                    "panel": "front",
+                    "category": item.get("category", "General"),
+                    "is_brand_claim": item.get("is_brand_claim", False),
+                })
+
+        for item in back_table:
+            k = item.get("key") or item.get("attribute") or ""
+            if k and k.lower() not in seen_keys:
+                seen_keys.add(k.lower())
+                pairs.append({
+                    "key": k,
+                    "value": str(item.get("value") or ""),
+                    "panel": "back",
+                    "category": item.get("category", "General"),
+                    "is_brand_claim": item.get("is_brand_claim", False),
+                })
+
+        return pairs
+
+    @staticmethod
+    def _build_declarations_table(merged: Dict[str, Any], brand_claims: List[Dict[str, Any]], product_category: str) -> List[Dict[str, Any]]:
+        """Construct a structured, formatted table of all declarations and highlighted brand claims."""
+        table = []
+
+        if merged.get("generic_product_name"):
+            table.append({
+                "attribute": "Generic Product Name",
+                "value": str(merged["generic_product_name"]),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if product_category and product_category != "Unknown":
+            table.append({
+                "attribute": "Product Category",
+                "value": str(product_category),
+                "category": "Classification",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if merged.get("mrp") is not None:
+            cur = merged.get("currency") or "INR"
+            symbol = "\u20b9" if cur == "INR" else cur
+            table.append({
+                "attribute": "Maximum Retail Price (MRP)",
+                "value": f"{symbol} {merged['mrp']} (Incl. of all taxes)",
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if merged.get("net_quantity") is not None:
+            unit_val = merged.get("unit") or ""
+            table.append({
+                "attribute": "Net Quantity",
+                "value": f"{merged['net_quantity']} {unit_val}".strip(),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        m = merged.get("manufacture_month")
+        y = merged.get("manufacture_year")
+        if m and y:
+            table.append({
+                "attribute": "Month & Year of Manufacture / Packing",
+                "value": f"{m:02d}/{y}",
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        elif y:
+            table.append({
+                "attribute": "Year of Manufacture",
+                "value": str(y),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if merged.get("expiry_date"):
+            table.append({
+                "attribute": "Expiry / Best Before Date",
+                "value": str(merged["expiry_date"]),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if merged.get("batch_number"):
+            table.append({
+                "attribute": "Batch / Lot Identifier",
+                "value": str(merged["batch_number"]),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if merged.get("manufacturer_name"):
+            table.append({
+                "attribute": "Manufacturer Name & Address",
+                "value": str(merged["manufacturer_name"]),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if merged.get("packer_name"):
+            table.append({
+                "attribute": "Packer Details",
+                "value": str(merged["packer_name"]),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        if merged.get("importer_name"):
+            table.append({
+                "attribute": "Importer Details",
+                "value": str(merged["importer_name"]),
+                "category": "Statutory Declaration",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        care_contacts = []
+        if merged.get("consumer_care_phone"):
+            care_contacts.append(f"Phone: {merged['consumer_care_phone']}")
+        if merged.get("consumer_care_email"):
+            care_contacts.append(f"Email: {merged['consumer_care_email']}")
+        if merged.get("consumer_care_address"):
+            care_contacts.append(f"Address: {merged['consumer_care_address']}")
+        if care_contacts:
+            table.append({
+                "attribute": "Consumer Grievance Redressal",
+                "value": " | ".join(care_contacts),
+                "category": "Contact & Care",
+                "is_brand_claim": False,
+                "highlight": False,
+            })
+        for claim_obj in brand_claims:
+            claim_text = claim_obj.get("claim") or ""
+            claim_cat = claim_obj.get("category") or "Brand Claim"
+            if claim_text:
+                table.append({
+                    "attribute": f"Brand Claim: {claim_cat}",
+                    "value": claim_text,
+                    "category": "Brand Claim",
+                    "is_brand_claim": True,
+                    "highlight": True,
+                })
+
+        return table
+
+    @staticmethod
+    def _build_summary_sentences(merged: Dict[str, Any], brand_claims: List[Dict[str, Any]], product_category: str) -> List[str]:
+        """Construct natural narrative sentences describing the package info with brand claims highlighted."""
+        sentences = []
+
+        prod = merged.get("generic_product_name") or "Pre-packaged commodity"
+        mrp = merged.get("mrp")
+        cur = merged.get("currency") or "INR"
+        symbol = "\u20b9" if cur == "INR" else cur
+        qty = merged.get("net_quantity")
+        unit_val = merged.get("unit") or ""
+
+        s1 = f"This packaging represents {prod}"
+        if qty:
+            s1 += f" with a declared net quantity of {qty} {unit_val}".strip()
+        if mrp:
+            s1 += f", priced at {symbol} {mrp} inclusive of all statutory taxes."
+        else:
+            s1 += "."
+        sentences.append(s1)
+
+        m = merged.get("manufacture_month")
+        y = merged.get("manufacture_year")
+        exp = merged.get("expiry_date")
+        batch = merged.get("batch_number")
+        mfg_str = f"{m:02d}/{y}" if (m and y) else (str(y) if y else None)
+
+        s2_parts = []
+        if mfg_str:
+            s2_parts.append(f"manufactured in {mfg_str}")
+        if exp:
+            s2_parts.append(f"valid until expiry date {exp}")
+        if batch:
+            s2_parts.append(f"under batch lot {batch}")
+        mfr = merged.get("manufacturer_name")
+        if mfr:
+            s2_parts.append(f"by {mfr}")
+        if s2_parts:
+            sentences.append("The product was " + ", ".join(s2_parts) + ".")
+
+        care_phone = merged.get("consumer_care_phone")
+        care_email = merged.get("consumer_care_email")
+        if care_phone or care_email:
+            care_details = []
+            if care_phone:
+                care_details.append(f"helpline {care_phone}")
+            if care_email:
+                care_details.append(f"email {care_email}")
+            sentences.append(f"Customer grievance redressal is provided via {' and '.join(care_details)}.")
+
+        if brand_claims:
+            claim_texts = [f"'{c['claim']}'" for c in brand_claims if c.get("claim")]
+            if len(claim_texts) == 1:
+                sentences.append(
+                    f"Prominent Brand Claim Highlight: The packaging prominently asserts {claim_texts[0]} as a distinguished product guarantee."
+                )
+            elif len(claim_texts) > 1:
+                joined_claims = ", ".join(claim_texts[:-1]) + " and " + claim_texts[-1]
+                sentences.append(
+                    f"Prominent Brand Claims Highlight: The brand emphasizes key marketing claims including {joined_claims} across the packaging faces."
+                )
+
+        return sentences
+
+    # =========================================================================
     # LAYER 3: VALIDATION & MERGING PIPELINE
     # =========================================================================
-    def extract_declarations(self, ocr_text: str) -> ExtractedDeclarations:
+    def extract_declarations(self, ocr_text: str) -> "ExtractedDeclarations":
         """
         Execute full 3-layer extraction pipeline.
         Merges regex, LLM extractions, and applies validation rules.
         """
         l1 = self.extract_layer1_regex(ocr_text)
         l2_raw = self.extract_layer2_llm(ocr_text)
-        
+
         l2 = l2_raw.get("extracted_fields", l2_raw) if isinstance(l2_raw, dict) else {}
         product_category = l2_raw.get("product_category", "Unknown") if isinstance(l2_raw, dict) else "Unknown"
 
-        # Merge strategy: Regex takes precedence for precise numeric fields (MRP, Date, Email); LLM fills names & text
-        merged = {}
-        confidence_scores = {}
+        merged: Dict[str, Any] = {}
+        confidence_scores: Dict[str, float] = {}
 
-        fields = [
+        field_names = [
             "manufacturer_name", "packer_name", "importer_name",
             "generic_product_name", "net_quantity", "unit", "mrp", "currency",
             "manufacture_month", "manufacture_year", "expiry_date", "batch_number",
@@ -249,22 +792,21 @@ OCR TEXT TO PROCESS:
             "consumer_care_email", "consumer_care_address",
         ]
 
-        for field in fields:
-            val = l1.get(field) or l2.get(field)
+        for fn in field_names:
+            val = l1.get(fn) or l2.get(fn)
             if val is not None:
-                merged[field] = val
-                # Calculate field confidence
-                if field in l1 and field in l2:
-                    confidence_scores[field] = 0.95
-                elif field in l1:
-                    confidence_scores[field] = 0.90
+                merged[fn] = val
+                if fn in l1 and fn in l2:
+                    confidence_scores[fn] = 0.95
+                elif fn in l1:
+                    confidence_scores[fn] = 0.90
                 else:
-                    confidence_scores[field] = 0.80
+                    confidence_scores[fn] = 0.80
             else:
-                merged[field] = None
-                confidence_scores[field] = 0.0
+                merged[fn] = None
+                confidence_scores[fn] = 0.0
 
-        # Layer 3 Normalizations
+        # Normalisations
         if merged.get("mrp") is not None:
             try:
                 merged["mrp"] = float(merged["mrp"])
@@ -279,21 +821,20 @@ OCR TEXT TO PROCESS:
             except (ValueError, TypeError):
                 merged["net_quantity"] = None
 
-        # Handle LLM outputting manufacture_date string instead of separate integers
         if not merged.get("manufacture_month") and not merged.get("manufacture_year"):
             mfg_date_str = l2.get("manufacture_date") or l2.get("mfg_date") or l2.get("manufactured_date")
             if mfg_date_str and isinstance(mfg_date_str, str):
                 date_match = re.search(r"(\d{4})[-/.](\d{1,2})|(\d{1,2})[-/.](\d{2,4})", mfg_date_str)
                 if date_match:
                     try:
-                        if date_match.group(1): # YYYY-MM
+                        if date_match.group(1):
                             merged["manufacture_year"] = int(date_match.group(1))
                             merged["manufacture_month"] = int(date_match.group(2))
-                        else: # MM-YYYY
-                            m = int(date_match.group(3))
-                            y = int(date_match.group(4))
-                            merged["manufacture_month"] = m
-                            merged["manufacture_year"] = y if y >= 100 else y + 2000
+                        else:
+                            mv = int(date_match.group(3))
+                            yv = int(date_match.group(4))
+                            merged["manufacture_month"] = mv
+                            merged["manufacture_year"] = yv if yv >= 100 else yv + 2000
                     except (ValueError, TypeError):
                         pass
 
@@ -306,6 +847,41 @@ OCR TEXT TO PROCESS:
             merged["unit"] = "kg"
         elif unit_str in ["milliliter", "mls"]:
             merged["unit"] = "ml"
+
+        brand_claims = l2_raw.get("brand_claims") if isinstance(l2_raw, dict) else None
+        if not brand_claims or not isinstance(brand_claims, list) or len(brand_claims) == 0:
+            brand_claims = self._detect_brand_claims(ocr_text)
+
+        front_panel_table = l2_raw.get("front_panel_table") if isinstance(l2_raw, dict) else None
+        if not front_panel_table or not isinstance(front_panel_table, list) or len(front_panel_table) == 0:
+            front_panel_table = self._build_front_panel_table(merged, brand_claims, ocr_text)
+
+        back_panel_table = l2_raw.get("back_panel_table") if isinstance(l2_raw, dict) else None
+        if not back_panel_table or not isinstance(back_panel_table, list) or len(back_panel_table) == 0:
+            back_panel_table = self._build_back_panel_table(merged, brand_claims, ocr_text)
+
+        all_key_value_pairs = l2_raw.get("all_key_value_pairs") if isinstance(l2_raw, dict) else None
+        if not all_key_value_pairs or not isinstance(all_key_value_pairs, list) or len(all_key_value_pairs) == 0:
+            all_key_value_pairs = self._build_all_key_value_pairs(merged, brand_claims, front_panel_table, back_panel_table)
+
+        declarations_table = l2_raw.get("declarations_table") if isinstance(l2_raw, dict) else None
+        if not declarations_table or not isinstance(declarations_table, list) or len(declarations_table) == 0:
+            declarations_table = self._build_declarations_table(merged, brand_claims, product_category)
+
+        summary_sentences = l2_raw.get("summary_sentences") if isinstance(l2_raw, dict) else None
+        if not summary_sentences or not isinstance(summary_sentences, list) or len(summary_sentences) == 0:
+            summary_sentences = self._build_summary_sentences(merged, brand_claims, product_category)
+
+        # Full verbatim text blocks
+        ingredients_list = (l2_raw.get("ingredients_list") if isinstance(l2_raw, dict) else None) or l1.get("ingredients_list_regex")
+        nutrition_table = l2_raw.get("nutrition_table") if isinstance(l2_raw, dict) else None
+        allergen_info = (l2_raw.get("allergen_info") if isinstance(l2_raw, dict) else None) or l1.get("allergen_info_regex")
+        storage_instructions = l2_raw.get("storage_instructions") if isinstance(l2_raw, dict) else None
+        usage_instructions = l2_raw.get("usage_instructions") if isinstance(l2_raw, dict) else None
+        composition = l2_raw.get("composition") if isinstance(l2_raw, dict) else None
+        certifications = l2_raw.get("certifications") if isinstance(l2_raw, dict) else None
+        legal_disclaimer = l2_raw.get("legal_disclaimer") if isinstance(l2_raw, dict) else None
+        other_text_blocks = l2_raw.get("other_text_blocks") if isinstance(l2_raw, dict) else None
 
         return ExtractedDeclarations(
             manufacturer_name=merged.get("manufacturer_name"),
@@ -325,7 +901,40 @@ OCR TEXT TO PROCESS:
             expiry_date=merged.get("expiry_date"),
             batch_number=merged.get("batch_number"),
             product_category=product_category,
+            brand_claims=brand_claims,
+            summary_sentences=summary_sentences,
+            declarations_table=declarations_table,
+            front_panel_table=front_panel_table,
+            back_panel_table=back_panel_table,
+            all_key_value_pairs=all_key_value_pairs,
+            ingredients_list=ingredients_list,
+            nutrition_table=nutrition_table if isinstance(nutrition_table, list) else None,
+            allergen_info=allergen_info,
+            storage_instructions=storage_instructions,
+            usage_instructions=usage_instructions,
+            composition=composition,
+            certifications=certifications if isinstance(certifications, list) else None,
+            legal_disclaimer=legal_disclaimer,
+            other_text_blocks=other_text_blocks if isinstance(other_text_blocks, list) else None,
             dynamic_fields=l2,
             field_confidence=confidence_scores,
-            raw_extractions={"regex": l1, "llm": l2_raw},
+            raw_extractions={
+                "regex": l1,
+                "llm": l2_raw,
+                "brand_claims": brand_claims,
+                "summary_sentences": summary_sentences,
+                "declarations_table": declarations_table,
+                "front_panel_table": front_panel_table,
+                "back_panel_table": back_panel_table,
+                "all_key_value_pairs": all_key_value_pairs,
+                "ingredients_list": ingredients_list,
+                "nutrition_table": nutrition_table if isinstance(nutrition_table, list) else None,
+                "allergen_info": allergen_info,
+                "storage_instructions": storage_instructions,
+                "usage_instructions": usage_instructions,
+                "composition": composition,
+                "certifications": certifications if isinstance(certifications, list) else None,
+                "legal_disclaimer": legal_disclaimer,
+                "other_text_blocks": other_text_blocks if isinstance(other_text_blocks, list) else None,
+            },
         )

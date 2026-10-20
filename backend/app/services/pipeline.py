@@ -208,6 +208,7 @@ class CompliancePipeline:
             # 2. Run PaddleOCR on ALL product images and combine text
             all_raw_text_parts = []
             all_bboxes = []  # Collect all bboxes for evidence cropping
+            ocr_records = []
             side_labels = ["front", "back", "extra"]
             primary_image_path = image_paths[0]
 
@@ -228,6 +229,7 @@ class CompliancePipeline:
                     detected_language="en",
                 )
                 db.add(ocr_record)
+                ocr_records.append(ocr_record)
                 await db.flush()
 
                 # Collect bboxes with image path for evidence cropping
@@ -372,6 +374,34 @@ class CompliancePipeline:
                 "product_id": str(product.id) if product else None,
                 "image_urls": scan.image_urls,
                 "digital_twin_discrepancies": discrepancies,
+                "all_detected_text": combined_ocr_text,
+                "ocr_transcriptions": [
+                    {
+                        "side": r.image_side,
+                        "image_url": r.image_url,
+                        "text": r.processed_text or r.raw_text,
+                        "confidence": r.confidence,
+                        "lines_detected": len((r.processed_text or r.raw_text or "").splitlines()),
+                        "boxes_count": len(r.bounding_boxes) if isinstance(r.bounding_boxes, list) else 0,
+                        "bounding_boxes": r.bounding_boxes or [],
+                    }
+                    for r in ocr_records
+                ],
+                "brand_claims": getattr(declarations, "brand_claims", []) or [],
+                "summary_sentences": getattr(declarations, "summary_sentences", []) or [],
+                "declarations_table": getattr(declarations, "declarations_table", []) or [],
+                "front_panel_table": getattr(declarations, "front_panel_table", []) or [],
+                "back_panel_table": getattr(declarations, "back_panel_table", []) or [],
+                "all_key_value_pairs": getattr(declarations, "all_key_value_pairs", []) or [],
+                "ingredients_list": getattr(declarations, "ingredients_list", None),
+                "nutrition_table": getattr(declarations, "nutrition_table", None),
+                "allergen_info": getattr(declarations, "allergen_info", None),
+                "storage_instructions": getattr(declarations, "storage_instructions", None),
+                "usage_instructions": getattr(declarations, "usage_instructions", None),
+                "composition": getattr(declarations, "composition", None),
+                "certifications": getattr(declarations, "certifications", None),
+                "legal_disclaimer": getattr(declarations, "legal_disclaimer", None),
+                "other_text_blocks": getattr(declarations, "other_text_blocks", None),
                 "extracted_declarations": {
                     "mrp": declarations.mrp,
                     "currency": getattr(declarations, "currency", "INR"),
@@ -389,6 +419,12 @@ class CompliancePipeline:
                     "consumer_care_address": getattr(declarations, "consumer_care_address", None),
                     "expiry_date": getattr(declarations, "expiry_date", None),
                     "batch_number": getattr(declarations, "batch_number", None),
+                    "brand_claims": getattr(declarations, "brand_claims", []) or [],
+                    "summary_sentences": getattr(declarations, "summary_sentences", []) or [],
+                    "declarations_table": getattr(declarations, "declarations_table", []) or [],
+                    "front_panel_table": getattr(declarations, "front_panel_table", []) or [],
+                    "back_panel_table": getattr(declarations, "back_panel_table", []) or [],
+                    "all_key_value_pairs": getattr(declarations, "all_key_value_pairs", []) or [],
                     **({k: v for k, v in (getattr(declarations, "dynamic_fields", None) or {}).items() if v is not None}),
                     **({k: v for k, v in (getattr(declarations, "raw_extractions", None) or {}).items() if v is not None}),
                 },

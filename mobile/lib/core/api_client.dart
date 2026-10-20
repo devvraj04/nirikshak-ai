@@ -10,12 +10,12 @@ class ApiClient {
 
   static String get getBaseUrl {
     if (kIsWeb) {
-      return 'http://140.238.224.196:8080';
+      return 'http://192.168.0.147:8080';
     }
     if (Platform.isAndroid) {
-      return 'http://140.238.224.196:8080';
+      return 'http://192.168.0.147:8080';
     }
-    return 'http://140.238.224.196:8080';
+    return 'http://192.168.0.147:8080';
   }
 
   ApiClient._internal() {
@@ -62,6 +62,11 @@ class ApiClient {
   Future<Map<String, dynamic>> processScan(String scanId) async {
     final response = await dio.post('/scans/$scanId/process');
     return response.data;
+  }
+
+  Future<Map<String, dynamic>> getScanOcr(String scanId) async {
+    final response = await dio.get('/scans/$scanId/ocr');
+    return Map<String, dynamic>.from(response.data);
   }
 
   Future<Map<String, dynamic>> getViolationAnalysis(String scanId, {String? ruleId}) async {

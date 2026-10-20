@@ -6,10 +6,11 @@ import os
 import uuid
 from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models import Scan
+from app.models import Declaration, OCRResult, Scan
 from app.models.enums import ScanStatus
 from app.services.pipeline import CompliancePipeline
 from app.services.storage import StorageService
@@ -124,13 +125,149 @@ async def get_scan_details(
     if not scan:
         raise HTTPException(status_code=404, detail="Scan record not found.")
 
+    ocr_stmt = select(OCRResult).where(OCRResult.scan_id == scan_id).order_by(OCRResult.created_at.asc())
+    ocr_res = await db.execute(ocr_stmt)
+    ocr_rows = ocr_res.scalars().all()
+    all_detected_text = "\n\n".join(
+        [f"[{r.image_side.upper() if r.image_side else 'LABEL'}]\n{r.processed_text or r.raw_text}" 
+         for r in ocr_rows if (r.processed_text or r.raw_text)]
+    )
+
+    decl_stmt = select(Declaration).where(Declaration.scan_id == scan_id)
+    decl_res = await db.execute(decl_stmt)
+    decl_row = decl_res.scalars().first()
+    raw_decl = decl_row.raw_declarations or {} if decl_row else {}
+
     return {
         "scan_id": str(scan.id),
         "status": scan.status.value,
         "overall_compliance": scan.overall_compliance.value if scan.overall_compliance else None,
         "image_urls": scan.image_urls,
+        "all_detected_text": all_detected_text,
+        "front_panel_table": raw_decl.get("front_panel_table", []),
+        "back_panel_table": raw_decl.get("back_panel_table", []),
+        "all_key_value_pairs": raw_decl.get("all_key_value_pairs", []),
+        "brand_claims": raw_decl.get("brand_claims", []),
+        "summary_sentences": raw_decl.get("summary_sentences", []),
+        "declarations_table": raw_decl.get("declarations_table", []),
+        "ingredients_list": raw_decl.get("ingredients_list"),
+        "nutrition_table": raw_decl.get("nutrition_table"),
+        "allergen_info": raw_decl.get("allergen_info"),
+        "storage_instructions": raw_decl.get("storage_instructions"),
+        "usage_instructions": raw_decl.get("usage_instructions"),
+        "composition": raw_decl.get("composition"),
+        "certifications": raw_decl.get("certifications"),
+        "legal_disclaimer": raw_decl.get("legal_disclaimer"),
+        "other_text_blocks": raw_decl.get("other_text_blocks"),
+        "extracted_declarations": {
+            "mrp": decl_row.mrp if decl_row else None,
+            "currency": decl_row.currency if decl_row else "INR",
+            "net_quantity": decl_row.net_quantity if decl_row else None,
+            "unit": decl_row.unit if decl_row else None,
+            "manufacturer_name": decl_row.manufacturer_name if decl_row else None,
+            "packer_name": decl_row.packer_name if decl_row else None,
+            "importer_name": decl_row.importer_name if decl_row else None,
+            "generic_product_name": decl_row.generic_product_name if decl_row else None,
+            "manufacture_month": decl_row.manufacture_month if decl_row else None,
+            "manufacture_year": decl_row.manufacture_year if decl_row else None,
+            "consumer_care_name": decl_row.consumer_care_name if decl_row else None,
+            "consumer_care_email": decl_row.consumer_care_email if decl_row else None,
+            "consumer_care_phone": decl_row.consumer_care_phone if decl_row else None,
+            "consumer_care_address": decl_row.consumer_care_address if decl_row else None,
+            **raw_decl,
+        } if decl_row else {},
+        "ocr_transcriptions": [
+            {
+                "image_side": r.image_side,
+                "image_url": r.image_url,
+                "detected_text": r.processed_text or r.raw_text,
+                "confidence": r.confidence,
+                "boxes_count": len(r.bounding_boxes) if isinstance(r.bounding_boxes, list) else 0,
+                "bounding_boxes": r.bounding_boxes or [],
+            }
+            for r in ocr_rows
+        ],
         "created_at": scan.created_at.isoformat(),
         "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+    }
+
+
+@router.get("/{scan_id}/ocr")
+async def get_scan_ocr(
+    scan_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get full OCR extraction results for a scan across all product faces and rotations.
+    Returns complete transcription, per-line bounding boxes, confidence, and rotation angle.
+    """
+    scan = await db.get(Scan, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan record not found.")
+
+    stmt = select(OCRResult).where(OCRResult.scan_id == scan_id).order_by(OCRResult.created_at.asc())
+    result = await db.execute(stmt)
+    records = result.scalars().all()
+
+    all_detected_text = "\n\n".join(
+        [f"[{r.image_side.upper() if r.image_side else 'LABEL'}]\n{r.processed_text or r.raw_text}" 
+         for r in records if (r.processed_text or r.raw_text)]
+    )
+
+    decl_stmt = select(Declaration).where(Declaration.scan_id == scan_id)
+    decl_res = await db.execute(decl_stmt)
+    decl_row = decl_res.scalars().first()
+    raw_decl = decl_row.raw_declarations or {} if decl_row else {}
+
+    return {
+        "scan_id": str(scan_id),
+        "all_detected_text": all_detected_text,
+        "front_panel_table": raw_decl.get("front_panel_table", []),
+        "back_panel_table": raw_decl.get("back_panel_table", []),
+        "all_key_value_pairs": raw_decl.get("all_key_value_pairs", []),
+        "brand_claims": raw_decl.get("brand_claims", []),
+        "summary_sentences": raw_decl.get("summary_sentences", []),
+        "declarations_table": raw_decl.get("declarations_table", []),
+        "ingredients_list": raw_decl.get("ingredients_list"),
+        "nutrition_table": raw_decl.get("nutrition_table"),
+        "allergen_info": raw_decl.get("allergen_info"),
+        "storage_instructions": raw_decl.get("storage_instructions"),
+        "usage_instructions": raw_decl.get("usage_instructions"),
+        "composition": raw_decl.get("composition"),
+        "certifications": raw_decl.get("certifications"),
+        "legal_disclaimer": raw_decl.get("legal_disclaimer"),
+        "other_text_blocks": raw_decl.get("other_text_blocks"),
+        "extracted_declarations": {
+            "mrp": decl_row.mrp if decl_row else None,
+            "currency": decl_row.currency if decl_row else "INR",
+            "net_quantity": decl_row.net_quantity if decl_row else None,
+            "unit": decl_row.unit if decl_row else None,
+            "manufacturer_name": decl_row.manufacturer_name if decl_row else None,
+            "packer_name": decl_row.packer_name if decl_row else None,
+            "importer_name": decl_row.importer_name if decl_row else None,
+            "generic_product_name": decl_row.generic_product_name if decl_row else None,
+            "manufacture_month": decl_row.manufacture_month if decl_row else None,
+            "manufacture_year": decl_row.manufacture_year if decl_row else None,
+            "consumer_care_name": decl_row.consumer_care_name if decl_row else None,
+            "consumer_care_email": decl_row.consumer_care_email if decl_row else None,
+            "consumer_care_phone": decl_row.consumer_care_phone if decl_row else None,
+            "consumer_care_address": decl_row.consumer_care_address if decl_row else None,
+            **raw_decl,
+        } if decl_row else {},
+        "faces": [
+            {
+                "id": str(r.id),
+                "image_side": r.image_side,
+                "image_url": r.image_url,
+                "raw_text": r.raw_text,
+                "processed_text": r.processed_text,
+                "confidence": r.confidence,
+                "bounding_boxes": r.bounding_boxes,
+                "extraction_method": r.extraction_method,
+                "detected_language": r.detected_language,
+            }
+            for r in records
+        ],
     }
 
 

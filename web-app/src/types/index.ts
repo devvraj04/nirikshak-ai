@@ -25,17 +25,64 @@ export interface ScanEvaluation {
   };
 }
 
+export interface OcrBoundingBox {
+  text: string;
+  bbox: number[][]; // [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+  score?: number;
+  detected_angle?: number;
+  normalized?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface BrandClaim {
+  claim: string;
+  category?: string;
+  context?: string;
+  verification_note?: string;
+  highlight?: boolean;
+}
+
+export interface DeclarationTableRow {
+  attribute: string;
+  value: string;
+  category: 'Statutory Declaration' | 'Brand Claim' | 'Product Specification' | 'Contact & Care' | 'Classification' | string;
+  is_brand_claim: boolean;
+  highlight?: boolean;
+}
+
+export interface OcrTranscription {
+  image_side?: string;
+  side?: string;
+  image_url?: string;
+  detected_text?: string;
+  text?: string;
+  raw_text?: string;
+  confidence?: number;
+  boxes_count?: number;
+  lines_detected?: number;
+  bounding_boxes?: OcrBoundingBox[];
+}
+
 export interface ScanItem {
   scan_id: string;
   status: string;
   overall_compliance: 'PASS' | 'FAIL' | 'REVIEW' | string;
   image_urls?: Record<string, string>;
+  all_detected_text?: string;
+  ocr_transcriptions?: OcrTranscription[];
   created_at: string;
   manufacturer_name?: string;
   product_name?: string;
   is_resolved: boolean;
   decision?: string;
   extracted_declarations?: Record<string, any>;
+  brand_claims?: BrandClaim[];
+  summary_sentences?: string[] | string;
+  declarations_table?: DeclarationTableRow[];
   product_category?: string;
   compliance_summary?: {
     passed_rules: number;
