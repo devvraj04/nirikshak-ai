@@ -96,5 +96,5 @@ If you need to ingest new PDF documents:
 1. Place the PDFs in `backend/rag_documents/`.
 2. Run the ingestion script inside the backend container:
    ```bash
-   docker exec nirikshak-backend python scripts/ingest_legal_docs.py
+   docker exec nirikshak-backend-vit python scripts/ingest_legal_docs.py
    ```

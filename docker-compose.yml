@@ -5,7 +5,7 @@ services:
   # We are using a remote Neon DB, so local Postgres is disabled.
   # postgres:
   #   image: postgres:16-alpine
-  #   container_name: nirikshak-postgres
+  #   container_name: nirikshak-postgres-vit
   #   restart: unless-stopped
   #   environment:
   #     POSTGRES_USER: ${POSTGRES_USER:-nirikshak}
@@ -26,7 +26,7 @@ services:
   # ============================================
   chromadb:
     image: chromadb/chroma:0.5.23
-    container_name: nirikshak-chromadb
+    container_name: nirikshak-chromadb-vit
     restart: unless-stopped
     ports:
       - "${CHROMA_PORT:-8000}:8000"
@@ -41,7 +41,7 @@ services:
   # ============================================
   redis:
     image: redis:7-alpine
-    container_name: nirikshak-redis
+    container_name: nirikshak-redis-vit
     restart: unless-stopped
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -58,7 +58,7 @@ services:
   # ============================================
   minio:
     image: quay.io/minio/minio:latest
-    container_name: nirikshak-minio
+    container_name: nirikshak-minio-vit
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -82,7 +82,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: nirikshak-backend
+    container_name: nirikshak-backend-vit
     restart: unless-stopped
     env_file:
       - .env
@@ -107,7 +107,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: nirikshak-worker
+    container_name: nirikshak-worker-vit
     restart: unless-stopped
     env_file:
       - .env
