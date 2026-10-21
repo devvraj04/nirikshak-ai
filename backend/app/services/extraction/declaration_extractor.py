@@ -80,68 +80,130 @@ class DeclarationExtractor:
     
     @staticmethod
     def _nutrition_table_regex_fallback(text: str) -> List[Dict[str, Any]]:
-        """Extract simple nutrition rows only when their reporting basis is explicit."""
+        """Extract nutrition rows from label OCR text with support for parenthetical units,
+        two-column values (100g and serving), multi-line OCR blocks, and varied headers."""
         if not text:
             return []
 
-        # Do not guess whether values refer to a serving or 100 g/ml.
+        # Check for explicit basis or nutrition table heading
         basis_match = re.search(
-            r"(?i)\bper\s*(100\s*g|100\s*ml|serving|serve)\b",
+            r"(?i)\b(?:per\s*(100\s*(?:g|gm|gms|ml|g\s*\/\s*ml)|serving|serve|pack|portion)|approximate\s*values\s*per\s*(100\s*(?:g|gm|gms|ml)))\b",
             text,
         )
-        if not basis_match:
+        heading_match = re.search(
+            r"(?i)\b(?:nutrition(?:al)?\s+(?:information|facts?|values?|declarations?|table)|typical\s+values)\b",
+            text,
+        )
+
+        # Do not guess when text has neither a nutrition heading nor a reporting basis
+        if not basis_match and not heading_match:
             return []
 
-        basis_text = basis_match.group(1).lower().replace(" ", "")
-        value_key = "per_serving" if basis_text in {"serving", "serve"} else "per_100g"
+        basis_raw = (basis_match.group(1) if basis_match and basis_match.group(1) else (basis_match.group(2) if basis_match else "")) or ""
+        basis_text = basis_raw.lower().replace(" ", "")
+        value_key = "per_serving" if basis_text in {"serving", "serve", "pack", "portion"} else "per_100g"
 
-        nutrient_names = {
-            "energy": r"energy|calories|calorie",
-            "protein": r"protein",
-            "carbohydrate": r"total\s+carbohydrate|carbohydrate|carbs",
-            "total fat": r"total\s+fat|fat",
-            "sugars": r"total\s+sugars|sugars|sugar",
-            "saturated fat": r"saturated\s+fat",
-            "trans fat": r"trans\s+fat",
-            "dietary fibre": r"dietary\s+fibre|dietary\s+fiber|fibre|fiber",
-            "sodium": r"sodium",
-        }
+        has_100g_mention = bool(re.search(r"(?i)\b(?:100\s*(?:g|gm|gms|ml))\b", text))
+        has_serving_mention = bool(re.search(r"(?i)\b(?:serving|serve|portion|pack)\b", text))
+
+        nutrient_specs = [
+            ("energy", r"(?:energy(?:\s+value)?|caloric\s+value|calories|calorie)", "kcal"),
+            ("protein", r"(?:protein|proteins|total\s+protein|crude\s+protein)", "g"),
+            ("carbohydrate", r"(?:total\s+carbohydrates?|carbohydrates?|carbs)", "g"),
+            ("added sugars", r"(?:added\s+sugars?|of\s+which\s+added\s+sugars?)", "g"),
+            ("sugars", r"(?:total\s+sugars?|sugars?|sucrose)", "g"),
+            ("saturated fat", r"(?:saturated\s+fatty\s+acids?|saturated\s+fats?|sat\.?\s*fats?)", "g"),
+            ("trans fat", r"(?:trans\s+fatty\s+acids?|trans\s+fats?)", "g"),
+            ("total fat", r"(?:total\s+fats?|fats?|total\s+lipids?|lipids?)", "g"),
+            ("cholesterol", r"cholesterol", "mg"),
+            ("dietary fibre", r"(?:total\s+dietary\s+fib(?:re|er)|dietary\s+fib(?:re|er)|fib(?:re|er)|crude\s+fib(?:re|er))", "g"),
+            ("sodium", r"sodium", "mg"),
+            ("salt", r"salt", "g"),
+        ]
 
         rows: List[Dict[str, Any]] = []
         seen = set()
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
 
-        for line in text.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-
-            for canonical_name, name_pattern in nutrient_names.items():
-                match = re.match(
-                    rf"(?i)^\s*(?:{name_pattern})\s*[:\-]?\s*"
-                    r"(\d+(?:\.\d+)?)\s*(kcal|kj|g|mg|mcg|µg)?\b",
-                    line,
-                )
-                if not match:
+        for i, line in enumerate(lines):
+            for canonical_name, name_pattern, default_unit in nutrient_specs:
+                if canonical_name in seen:
                     continue
 
-                value = match.group(1)
-                unit = match.group(2) or None
-                identity = (canonical_name, value, unit, value_key)
+                match = re.search(
+                    rf"(?i)^\s*[-*•●]?\s*(?:(?:of\s+which|which)\s+)?({name_pattern})"
+                    r"(?:\s*\(([^)]*)\))?\s*[:\-=~]?\s*"
+                    r"([<≤]?\s*\d+(?:[.,]\d+)?)\s*(kcal|kj|g|gm|mg|mcg|µg|ug)?"
+                    r"(?:\s+([<≤]?\s*\d+(?:[.,]\d+)?)\s*(kcal|kj|g|gm|mg|mcg|µg|ug)?)?",
+                    line,
+                )
 
-                if identity in seen:
+                val1, unit1, val2, unit2 = None, None, None, None
+
+                if match:
+                    paren_content = (match.group(2) or "").strip()
+                    val1 = match.group(3)
+                    unit1 = match.group(4) or None
+                    val2 = match.group(5) or None
+                    unit2 = match.group(6) or None
+
+                    if not unit1 and paren_content:
+                        unit_in_paren = re.search(r"(?i)\b(kcal|kj|g|gm|mg|mcg|µg|ug)\b", paren_content)
+                        if unit_in_paren:
+                            unit1 = unit_in_paren.group(1).lower()
+
+                    if not unit1:
+                        unit1 = default_unit
+                else:
+                    # Lookahead: Name on line i, value on line i+1
+                    name_only_match = re.search(
+                        rf"(?i)^\s*[-*•●]?\s*(?:(?:of\s+which|which)\s+)?({name_pattern})(?:\s*\(([^)]*)\))?\s*[:\-=~]?\s*$",
+                        line,
+                    )
+                    if name_only_match and i + 1 < len(lines):
+                        next_line = lines[i + 1]
+                        val_match = re.match(
+                            r"^\s*([<≤]?\s*\d+(?:[.,]\d+)?)\s*(kcal|kj|g|gm|mg|mcg|µg|ug)?(?:\s+([<≤]?\s*\d+(?:[.,]\d+)?)\s*(kcal|kj|g|gm|mg|mcg|µg|ug)?)?",
+                            next_line,
+                        )
+                        if val_match:
+                            paren_content = (name_only_match.group(2) or "").strip()
+                            val1 = val_match.group(1)
+                            unit1 = val_match.group(2) or None
+                            val2 = val_match.group(3) or None
+                            unit2 = val_match.group(4) or None
+                            if not unit1 and paren_content:
+                                unit_in_paren = re.search(r"(?i)\b(kcal|kj|g|gm|mg|mcg|µg|ug)\b", paren_content)
+                                if unit_in_paren:
+                                    unit1 = unit_in_paren.group(1).lower()
+                            if not unit1:
+                                unit1 = default_unit
+
+                if val1 is not None:
+                    seen.add(canonical_name)
+                    row: Dict[str, Any] = {
+                        "nutrient": canonical_name,
+                        "per_serving": None,
+                        "per_100g": None,
+                        "unit": unit1,
+                        "source_text": line,
+                    }
+
+                    formatted_val1 = f"{val1} {unit1}".strip() if unit1 else str(val1)
+
+                    if val2 is not None:
+                        formatted_val2 = f"{val2} {unit2 or unit1}".strip() if (unit2 or unit1) else str(val2)
+                        row["per_100g"] = formatted_val1
+                        row["per_serving"] = formatted_val2
+                    else:
+                        row[value_key] = formatted_val1
+                        if value_key == "per_serving" and has_100g_mention:
+                            row["per_100g"] = formatted_val1
+                        elif value_key == "per_100g" and not row["per_serving"]:
+                            row["per_100g"] = formatted_val1
+
+                    rows.append(row)
                     break
-                seen.add(identity)
-
-                row: Dict[str, Any] = {
-                    "nutrient": canonical_name,
-                    "per_serving": None,
-                    "per_100g": None,
-                    "unit": unit,
-                    "source_text": line,
-                }
-                row[value_key] = f"{value} {unit}".strip() if unit else value
-                rows.append(row)
-                break
 
         return rows
 
@@ -214,7 +276,7 @@ class DeclarationExtractor:
 
         # Quick grab of full ingredients section
         ingr_match = re.search(
-            r"(?i)(?:ingredients?|composition|contains?)\s*[:\-]?\s*([\s\S]{10,800}?)(?=\n\n|\Z|(?:nutritional|storage|allergen|best before|mfg|manufactured|packed|mrp|max\.?\s*retail))",
+            r"(?i)\b(?:ingredients?|composition)\b\s*[:\-]?\s*([\s\S]{10,800}?)(?=\n\n|\Z|(?:nutritional|storage|allergen|best before|mfg|manufactured|packed|mrp|max\.?\s*retail))",
             text,
         )
         if ingr_match:
@@ -358,7 +420,7 @@ class DeclarationExtractor:
         )
 
         try:
-            candidate_models = [settings.llm_model, "groq/compound-mini", "groq/compound", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+            candidate_models = [settings.llm_model, "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"]
             models_to_try = [m for m in dict.fromkeys(candidate_models) if m]
             content = None
 
@@ -672,35 +734,35 @@ class DeclarationExtractor:
         right_table: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Construct comprehensive master list of all key-value pairs without loss of detail."""
-        pairs = []
-        seen_keys: set = set()
+        pairs: List[Dict[str, Any]] = []
+        seen: set = set()
 
-        for table in [front_table, back_table, left_table or [], right_table or []]:
-            for item in table:
-                k = item.get("key") or item.get("attribute") or ""
-                if k and k.lower() not in seen_keys:
-                    seen_keys.add(k.lower())
-                    pairs.append(item)
-                seen_keys.add(k.lower())
-                pairs.append({
-                    "key": k,
-                    "value": str(item.get("value") or ""),
-                    "panel": "front",
+        for panel, table in (
+            ("front", front_table),
+            ("back", back_table),
+            ("left", left_table or []),
+            ("right", right_table or []),
+        ):
+            for item in table or []:
+                if not isinstance(item, dict):
+                    continue
+                key = item.get("key") or item.get("attribute") or ""
+                if not key:
+                    continue
+                value = str(item.get("value") or "")
+                identity = (key.lower(), value.lower(), panel)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                entry = dict(item)
+                entry.update({
+                    "key": key,
+                    "value": value,
+                    "panel": item.get("panel") or panel,
                     "category": item.get("category", "General"),
                     "is_brand_claim": item.get("is_brand_claim", False),
                 })
-
-        for item in back_table:
-            k = item.get("key") or item.get("attribute") or ""
-            if k and k.lower() not in seen_keys:
-                seen_keys.add(k.lower())
-                pairs.append({
-                    "key": k,
-                    "value": str(item.get("value") or ""),
-                    "panel": "back",
-                    "category": item.get("category", "General"),
-                    "is_brand_claim": item.get("is_brand_claim", False),
-                })
+                pairs.append(entry)
 
         return pairs
 
@@ -1012,13 +1074,41 @@ class DeclarationExtractor:
         ingredients_list = (l2_raw.get("ingredients_list") if isinstance(l2_raw, dict) else None) or l1.get("ingredients_list_regex")
 
         nutrition_table = (
-            l2_raw.get("nutrition_table")
+            (l2_raw.get("nutrition_table")
+            or l2_raw.get("nutritional_table")
+            or l2_raw.get("nutrition")
+            or l2_raw.get("nutritional_information")
+            or l2_raw.get("nutrition_facts"))
             if isinstance(l2_raw, dict)
             else None
         )
 
+        # Normalize dictionary format to list of dicts
+        if isinstance(nutrition_table, dict):
+            converted = []
+            for k, v in nutrition_table.items():
+                if isinstance(v, dict):
+                    converted.append({"nutrient": k, **v})
+                else:
+                    converted.append({"nutrient": k, "per_100g": str(v), "unit": None})
+            nutrition_table = converted
+
+        # Get deterministic fallback rows
+        fallback_rows = self._nutrition_table_regex_fallback(ocr_text)
+
         if not isinstance(nutrition_table, list) or not nutrition_table:
-            nutrition_table = self._nutrition_table_regex_fallback(ocr_text)
+            nutrition_table = fallback_rows
+        elif fallback_rows:
+            # If LLM returned a partial list missing core nutrients, merge from fallback
+            existing_nutrients = {
+                re.sub(r"[:\-_.\s]", "", str(r.get("nutrient", "")).lower())
+                for r in nutrition_table if isinstance(r, dict)
+            }
+            for f_row in fallback_rows:
+                f_norm = re.sub(r"[:\-_.\s]", "", str(f_row.get("nutrient", "")).lower())
+                if f_norm and not any(f_norm in e or e in f_norm for e in existing_nutrients):
+                    nutrition_table.append(f_row)
+                    existing_nutrients.add(f_norm)
         
         allergen_info = (l2_raw.get("allergen_info") if isinstance(l2_raw, dict) else None) or l1.get("allergen_info_regex")
         storage_instructions = l2_raw.get("storage_instructions") if isinstance(l2_raw, dict) else None

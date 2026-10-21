@@ -36,6 +36,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
   Map<String, dynamic>? _nutritionAudit;
   bool _loadingNutritionAudit = false;
+  Map<String, dynamic>? _productRating;
+  Map<String, dynamic>? _labelCoverage;
 
   bool _rawOcrViewMode = false;
   bool _showOcrBoundingBoxes = true;
@@ -114,13 +116,24 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
       if (!mounted) return;
 
-      setState(() {
-        final audit = details['nutrition_audit'];
-        _nutritionAudit = audit is Map
-            ? Map<String, dynamic>.from(audit)
-            : null;
-        _loadingNutritionAudit = false;
-      });
+setState(() {
+  final audit = details['nutrition_audit'];
+  _nutritionAudit = audit is Map
+      ? Map<String, dynamic>.from(audit)
+      : null;
+
+  final rating = details['product_rating'];
+  _productRating = rating is Map
+      ? Map<String, dynamic>.from(rating)
+      : null;
+
+  final coverage = details['label_coverage'];
+  _labelCoverage = coverage is Map
+      ? Map<String, dynamic>.from(coverage)
+      : null;
+
+  _loadingNutritionAudit = false;
+});
     } catch (_) {
       if (!mounted) return;
 
@@ -540,7 +553,286 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     );
   }
 
-  
+
+
+List<String> get _coverageCueList {
+  final cues = _labelCoverage?['cues'];
+  return cues is List ? cues.map((e) => e.toString()).toList() : <String>[];
+}
+
+/// Amber "what to do next" note: the backend's next_step plus the label's own quoted pointers.
+Widget _buildLabelPointerNote(String? nextStep, List<String> cues) {
+  final hasStep = nextStep != null && nextStep.isNotEmpty;
+  if (!hasStep && cues.isEmpty) {
+    return const SizedBox.shrink();
+  }
+  const tone = Color(0xFF92400E);
+
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFFBEB),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFFFCD34D).withValues(alpha: 0.7)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.document_scanner_outlined, size: 18, color: tone),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hasStep
+                    ? nextStep
+                    : 'The label points to information printed elsewhere on the pack.',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  height: 1.45,
+                  fontWeight: FontWeight.w600,
+                  color: tone,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (cues.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'The label itself says:',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          ...cues.map(
+            (cue) => Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                '\u201C$cue\u201D',
+                style: const TextStyle(
+                  fontSize: 12,
+                  height: 1.4,
+                  fontStyle: FontStyle.italic,
+                  color: Color(0xFF475569),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+Widget _buildProductRatingCard() {
+  final rating = _productRating;
+
+  if (rating == null) {
+    return const SizedBox.shrink();
+  }
+
+  final status = rating['status']?.toString() ?? 'inconclusive';
+  final score = rating['rating_out_of_5'];
+  final components = rating['components'] is Map
+      ? Map<String, dynamic>.from(rating['components'])
+      : <String, dynamic>{};
+
+  final limitations = rating['limitations'] is List
+      ? List<String>.from(rating['limitations'].map((e) => e.toString()))
+      : <String>[];
+
+  final isNotApplicable = status == 'not_applicable';
+  final isInconclusive =
+      status == 'inconclusive' || status == 'not_applicable' || score is! num;
+  final userMessage = rating['user_message']?.toString();
+  final nextStep = rating['next_step']?.toString();
+  final coverageCues = _coverageCueList;
+
+  const accent = Color(0xFF0F766E);
+
+  Widget componentRow(String label, dynamic value) {
+    final number = value is num ? value.toDouble() : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF334155),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            number == null
+    ? (label == 'Ingredient quality' ? 'Not assessed' : 'Not available')
+    : '${number.toStringAsFixed(0)}/100',
+            style: const TextStyle(
+              color: Color(0xFF475569),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  return Container(
+    margin: const EdgeInsets.only(top: 12, bottom: 8),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.92),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: accent.withValues(alpha: 0.25)),
+      boxShadow: [
+        BoxShadow(
+          color: accent.withValues(alpha: 0.06),
+          blurRadius: 18,
+          offset: const Offset(0, 5),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.star_rounded, color: accent, size: 24),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'PRODUCT NUTRITION RATING',
+                style: TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (isInconclusive) ...[
+          Text(
+            isNotApplicable ? 'Not applicable' : 'Rating unavailable',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            (userMessage != null && userMessage.isNotEmpty)
+                ? userMessage
+                : 'There is not enough nutrition evidence to assign a meaningful rating.',
+	 style: const TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: Color(0xFF475569),
+            ),
+          ),
+          if (!isNotApplicable && ((nextStep != null && nextStep.isNotEmpty) || coverageCues.isNotEmpty)) ...[
+            const SizedBox(height: 10),
+            _buildLabelPointerNote(nextStep, coverageCues),
+          ],
+        ] else ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                (score as num).toStringAsFixed(1),
+                style: const TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                '/ 5',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              const Icon(Icons.info_outline_rounded, color: accent),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Provisional screening score — not a validated medical or regulatory assessment.',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: Color(0xFF64748B),
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        const Text(
+          'Score breakdown',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        const SizedBox(height: 6),
+        componentRow('Nutrition', components['nutrition']),
+        componentRow('Ingredient quality', components['ingredients']),
+componentRow('Evidence completeness (data available)', components['evidence_completeness']),
+        if (limitations.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Text(
+            'Important limitations',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF92400E),
+            ),
+          ),
+          const SizedBox(height: 4),
+          ...limitations.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('•  '),
+                  Expanded(
+                    child: Text(
+                      item,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
         
 Widget _buildNutritionAuditCard() {
   final audit = _nutritionAudit;
@@ -566,12 +858,17 @@ Widget _buildNutritionAuditCard() {
 
   final isWithin = status == 'within_screening_tolerance';
   final needsReview = status == 'review_required';
+  final isNotApplicable = status == 'not_applicable';
+  final noTable = !isNotApplicable && (audit['reason_code']?.toString() == 'NO_NUTRITION_TABLE');
+  final auditMessage = audit['user_message']?.toString();
 
   final Color accent = isWithin
       ? const Color(0xFF15803D)
       : needsReview
           ? const Color(0xFFB45309)
-          : const Color(0xFF64748B);
+          : isNotApplicable
+              ? const Color(0xFF6366F1)  // indigo for not-applicable
+              : const Color(0xFF64748B);
 
   String formatValue(dynamic value) {
     if (value is num) return value.toStringAsFixed(1);
@@ -668,7 +965,9 @@ Widget _buildNutritionAuditCard() {
                 ? 'Within screening tolerance'
                 : needsReview
                     ? 'Further review recommended'
-                    : 'Unable to conclude',
+                    : isNotApplicable
+                        ? 'Not applicable for this product'
+                        : (noTable ? 'No nutrition table found' : 'Unable to conclude'),
             style: TextStyle(
               color: accent,
               fontSize: 12,
@@ -677,6 +976,31 @@ Widget _buildNutritionAuditCard() {
           ),
         ),
         const SizedBox(height: 12),
+        if (isNotApplicable) ...[
+          Text(
+            (auditMessage != null && auditMessage.isNotEmpty)
+                ? auditMessage
+                : 'Energy consistency check is not applicable to this product type.',
+            style: const TextStyle(
+              color: AppTheme.slate700,
+              fontSize: 13,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ] else if (noTable) ...[
+          Text(
+            (auditMessage != null && auditMessage.isNotEmpty)
+                ? auditMessage
+                : 'No nutrition table was found on the scanned faces of this pack, so the energy cannot be checked.',
+            style: const TextStyle(
+              color: AppTheme.slate700,
+              fontSize: 13,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ] else ...[
         Row(
           children: [
             metric('Declared energy', '${formatValue(declared)} kcal'),
@@ -693,7 +1017,8 @@ Widget _buildNutritionAuditCard() {
             fontSize: 13,
           ),
         ),
-        if (nutrients.isNotEmpty) ...[
+        ],
+        if (!isNotApplicable && nutrients.isNotEmpty) ...[
           const SizedBox(height: 12),
           const Text(
             'MACRONUTRIENTS USED',
@@ -3018,6 +3343,7 @@ Widget _buildNutritionAuditCard() {
       ),
     );
 
+    sections.add(_buildProductRatingCard());
     sections.add(_buildNutritionAuditCard());
 
     // --- Ingredients List ---
@@ -5939,13 +6265,13 @@ Widget _buildNutritionAuditCard() {
           duration: Duration(seconds: 2),
         ),
       );
-      final dio = Dio();
+      final dio = ApiClient().dio;
       final endpoint = isComplaint
           ? '/reports/complaint/$scanId/download'
           : '/reports/$scanId/download';
 
       final response = await dio.get(
-        '${ApiClient.getBaseUrl}$endpoint',
+        endpoint,
         options: Options(responseType: ResponseType.bytes),
       );
       await Printing.sharePdf(

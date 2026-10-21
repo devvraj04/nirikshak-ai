@@ -21,6 +21,9 @@ from app.services.rag.rag_pipeline import RAGPipeline
 from app.services.rules.rule_engine import RuleEngine
 from app.services.storage import StorageService
 from app.services.ingredients.ingredient_engine import ingredient_engine
+from app.services.product_rating import rate_product
+from app.services.nutrition_audit import audit_nutrition_table
+from app.services.label_coverage import label_coverage
 
 logger = get_logger("services.pipeline")
 
@@ -263,6 +266,27 @@ class CompliancePipeline:
                 declarations.raw_extractions = {}
             declarations.raw_extractions["ingredient_analysis"] = ingredient_analysis
 
+            # 3.2 Product Nutrition Rating, Audit, and Label Coverage
+            nutrition_rows = getattr(declarations, "nutrition_table", None) or []
+            product_category = getattr(declarations, "product_category", None)
+            nutrition_audit_res = audit_nutrition_table(
+                nutrition_rows if isinstance(nutrition_rows, list) else [],
+                product_category=product_category,
+                ocr_text=combined_ocr_text,
+            )
+            product_rating_res = rate_product(
+                nutrition_table=nutrition_rows if isinstance(nutrition_rows, list) else [],
+                ingredients=getattr(declarations, "ingredients_list", None),
+                product_category=product_category,
+                ocr_text=combined_ocr_text,
+            )
+            label_coverage_res = label_coverage(combined_ocr_text, scan.image_urls)
+
+            declarations.raw_extractions["nutrition_table"] = nutrition_rows
+            declarations.raw_extractions["nutrition_audit"] = nutrition_audit_res
+            declarations.raw_extractions["product_rating"] = product_rating_res
+            declarations.raw_extractions["label_coverage"] = label_coverage_res
+
             # Store Declarations in Database
             decl_record = Declaration(
                 scan_id=scan.id,
@@ -414,6 +438,9 @@ class CompliancePipeline:
                 "ingredients_list": getattr(declarations, "ingredients_list", None),
                 "ingredient_analysis": ingredient_analysis,
                 "nutrition_table": getattr(declarations, "nutrition_table", None),
+                "nutrition_audit": nutrition_audit_res,
+                "product_rating": product_rating_res,
+                "label_coverage": label_coverage_res,
                 "allergen_info": getattr(declarations, "allergen_info", None),
                 "storage_instructions": getattr(declarations, "storage_instructions", None),
                 "usage_instructions": getattr(declarations, "usage_instructions", None),

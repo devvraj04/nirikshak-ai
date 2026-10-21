@@ -4,6 +4,8 @@ NIRIKSHAK AI - Product Scan API Routes.
 
 import os
 import uuid
+from app.services.product_rating import rate_product
+from app.services.label_coverage import label_coverage
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -155,10 +157,27 @@ async def get_scan_details(
     raw_decl = decl_row.raw_declarations or {} if decl_row else {}
 
     nutrition_rows = raw_decl.get("nutrition_table") or []
+    product_category = raw_decl.get("llm", {}).get("product_category") if isinstance(raw_decl.get("llm"), dict) else None
 
-    nutrition_audit = audit_nutrition_table(
-        nutrition_rows if isinstance(nutrition_rows, list) else []
-    )
+    # Use pipeline-computed values if already stored; otherwise recompute with category context.
+    if raw_decl.get("nutrition_audit"):
+        nutrition_audit = raw_decl["nutrition_audit"]
+    else:
+        nutrition_audit = audit_nutrition_table(
+            nutrition_rows if isinstance(nutrition_rows, list) else [],
+            product_category=product_category,
+            ocr_text=all_detected_text,
+        )
+
+    if raw_decl.get("product_rating"):
+        product_rating = raw_decl["product_rating"]
+    else:
+        product_rating = rate_product(
+            nutrition_table=nutrition_rows if isinstance(nutrition_rows, list) else [],
+            ingredients=raw_decl.get("ingredients_list"),
+            product_category=product_category,
+            ocr_text=all_detected_text,
+        )
 
     return {
         "scan_id": str(scan.id),
@@ -178,6 +197,8 @@ async def get_scan_details(
         "ingredient_analysis": raw_decl.get("ingredient_analysis") or (ingredient_engine.analyze_full_product(raw_decl.get("ingredients_list") or "") if raw_decl.get("ingredients_list") else None),
         "nutrition_table": raw_decl.get("nutrition_table"),
         "nutrition_audit": nutrition_audit,
+        "product_rating": product_rating,
+        "label_coverage": label_coverage(all_detected_text, scan.image_urls),
         "allergen_info": raw_decl.get("allergen_info"),
         "storage_instructions": raw_decl.get("storage_instructions"),
         "usage_instructions": raw_decl.get("usage_instructions"),

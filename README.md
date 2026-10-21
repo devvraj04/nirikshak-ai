@@ -45,18 +45,14 @@ Before you start, ensure you have the following installed:
 
 Because the mobile app runs on a physical device, it needs to know how to connect to your computer's backend.
 
-1. **Find your computer's Local Wi-Fi IP address** (e.g., `192.168.x.x`).
-2. **Update the API Client:**
-   Open `mobile/lib/core/api_client.dart` and change the `getBaseUrl` to match your PC's IP address:
-   ```dart
-   return 'http://YOUR_LOCAL_IP:8080';
-   ```
-3. **Run the App:**
-   Ensure your phone and PC are on the same Wi-Fi network. Then navigate to the `mobile` folder and run:
+1. **Set the API address:** For a physical phone, use your computer's current local Wi-Fi IP. For the Android emulator, use `10.0.2.2` instead of the computer IP.
+2. **Run the App:**
+   Ensure your phone and PC are on the same Wi-Fi network, the backend is running, and your firewall allows incoming connections on port `8080`. Then navigate to the `mobile` folder and run:
    ```bash
    cd mobile
-   flutter run
+   flutter run --dart-define=API_BASE_URL=http://192.168.1.4:8080
    ```
+   Replace `192.168.1.4` with the appropriate address. The current default can also be overridden with `--dart-define=API_BASE_URL=http://YOUR_LOCAL_IP:8080`; you no longer need to edit the Dart source.
 
    **📱 Want to run it wirelessly (Untethered)?**
    Instead of using a USB cable, you can use Android's Wireless Debugging to hot-reload directly over Wi-Fi:
