@@ -176,9 +176,9 @@ class SurrogateAdEngine:
         elif deterministic_patterns:
             risk_score = 25
 
-        # Step 2: Enrich with LLM reasoning if potential violation or brand match exists
+        # Step 2: Dynamically evaluate with LLM reasoning (Groq LLaMA 3.1)
         llm_verdict = None
-        if (matched_brand or deterministic_patterns or len(detected_text) > 50) and self.api_key:
+        if self.api_key and (brand_name or product_name or detected_text or brand_claims or matched_brand or deterministic_patterns):
             prompt = f"""
             Analyze the following Indian packaged product for Surrogate Advertising (under CCPA 2022 Guidelines Section 8) 
             and Deceptive Marketing / Dark Patterns (under FSSAI Advertising and Claims Regulations 2018):
