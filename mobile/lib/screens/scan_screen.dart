@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import '../core/theme.dart';
 import '../widgets/aura_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/nirikshak_app_bar.dart';
+import '../widgets/scan_loading_view.dart';
 import 'camera_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -26,8 +28,39 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
   File? _leftImage;
   File? _rightImage;
   bool _isProcessing = false;
+  double _scanProgress = 0.0;
+  Timer? _progressTimer;
   bool _scanFlowActive = false;
   int _currentStep = 0;
+
+  @override
+  void dispose() {
+    _progressTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startProgressSimulation() {
+    _progressTimer?.cancel();
+    _scanProgress = 0.05;
+
+    _progressTimer = Timer.periodic(const Duration(milliseconds: 120), (timer) {
+      if (!mounted || !_isProcessing) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_scanProgress < 0.28) {
+          _scanProgress += 0.02;
+        } else if (_scanProgress < 0.62) {
+          _scanProgress += 0.015;
+        } else if (_scanProgress < 0.86) {
+          _scanProgress += 0.009;
+        } else if (_scanProgress < 0.94) {
+          _scanProgress += 0.002;
+        }
+      });
+    });
+  }
 
   final List<String> _steps = ['Front', 'Back', 'Left', 'Right'];
 
@@ -200,7 +233,11 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
       return;
     }
 
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _scanProgress = 0.05;
+    });
+    _startProgressSimulation();
 
     try {
       final auth = ref.read(authProvider);
@@ -216,11 +253,21 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
       final result = await _apiClient.processScan(scanId);
 
+      _progressTimer?.cancel();
       if (mounted) {
-        setState(() => _isProcessing = false);
-        context.push('/result', extra: result);
+        // Complete the bar to 100%
+        setState(() => _scanProgress = 1.0);
+
+        // Pause briefly so user clearly sees 100% & the synchronized status
+        await Future.delayed(const Duration(milliseconds: 450));
+
+        if (mounted) {
+          setState(() => _isProcessing = false);
+          context.push('/result', extra: result);
+        }
       }
     } catch (e) {
+      _progressTimer?.cancel();
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -244,40 +291,20 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isProcessing) {
+      return Scaffold(
+        body: ScanLoadingView(progress: _scanProgress),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppTheme.auraBg,
       body: AuraBackground(
         child: SafeArea(
-          child: _isProcessing
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(
-                        width: 50,
-                        height: 50,
-                        child: CircularProgressIndicator(
-                          color: AppTheme.emerald500,
-                          strokeWidth: 4,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'AI OCR Extraction & Rule Evaluation...',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppTheme.slate900),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Checking Legal Metrology (PC) Rules, 2011 declarations',
-                        style: TextStyle(fontSize: 12, color: AppTheme.slate500),
-                      ),
-                    ],
-                  ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       NirikshakAppBar(
                         badgeText: 'VISION OCR',

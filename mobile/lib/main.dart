@@ -18,7 +18,7 @@ void main() {
 }
 
 final _router = GoRouter(
-  initialLocation: '/splash',
+  initialLocation: '/login',
   routes: [
     GoRoute(
       path: '/splash',
