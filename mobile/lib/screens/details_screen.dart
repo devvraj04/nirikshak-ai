@@ -3794,7 +3794,7 @@ String _structuredTableTab = 'front';
                       ),
                     ),
                     Text(
-                      'Legal Metrology (LMPC) Mandatory Info',
+                      'Food Safety & Standards (FSSAI) Mandatory Info',
                       style: TextStyle(fontSize: 10, color: Color(0xFF64748B)),
                     ),
                   ],
@@ -3829,7 +3829,7 @@ String _structuredTableTab = 'front';
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        netQtyDisplay != 'Not Declared' ? 'Declared on Pack' : 'Mandatory under LMPC',
+                        netQtyDisplay != 'Not Declared' ? 'Declared on Pack' : 'Food Safety Standard',
                         style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
@@ -3899,7 +3899,7 @@ String _structuredTableTab = 'front';
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        hasExp ? 'Expiry / Best Before Declared' : (hasMfg ? 'Mfg Date Declared' : 'Rule 6(1)(d) Check'),
+                        hasExp ? 'Expiry / Best Before Declared' : (hasMfg ? 'Mfg Date Declared' : 'Food Safety Shelf Life Check'),
                         style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
@@ -7968,30 +7968,293 @@ String _structuredTableTab = 'front';
 
   // --- PDF Export Handler ---
   Future<void> _downloadPdfReport(BuildContext context, bool isComplaint, String scanId) async {
+    if (isComplaint) {
+      await _executeReportDownload(
+        context,
+        endpoint: '/reports/complaint/$scanId/download',
+        fileName: 'complaint_report_$scanId.pdf',
+        reportTitle: 'Complaint Investigation Report',
+      );
+      return;
+    }
+
+    // For product scans, display the report format selection sheet
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.slate300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.emerald50,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.verified_user_rounded,
+                        color: AppTheme.emerald600,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Generate Compliance Report',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.slate900,
+                            ),
+                          ),
+                          Text(
+                            'Certified & Digitally Signed by Examiner Dev',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.slate500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Option 1: 2-page PyMuPDF Compliance & Evidence Report (Recommended)
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _executeReportDownload(
+                      context,
+                      endpoint: '/reports/$scanId/download?format=pymupdf',
+                      fileName: 'nirikshak_compliance_report_$scanId.pdf',
+                      reportTitle: 'PyMuPDF Compliance & Evidence Report (2 Pages)',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.slate50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.emerald500.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppTheme.emerald500,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Compliance & Evidence Report',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.slate900,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    '2 PAGES',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.emerald600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Statutory label checks, WHO osmolarity formula verification, photographic exhibits with interactive OCR confidence boxes, and Dev\'s digital seal.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppTheme.slate600,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Option 2: 3-page Concise Evidence Dossier
+                InkWell(
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _executeReportDownload(
+                      context,
+                      endpoint: '/reports/$scanId/download?format=concise',
+                      fileName: 'nirikshak_concise_dossier_$scanId.pdf',
+                      reportTitle: 'Forensic Evidence Dossier (3 Pages)',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppTheme.slate50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.slate200),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.assignment_turned_in_rounded, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Detailed Evidence Dossier',
+                                    style: TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.slate900,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    '3 PAGES',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.slate500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Forensic inspection dossier with high-resolution photographic evidence, SHA-256 seal, and Section 63 BSA legal certificate.',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppTheme.slate600,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _executeReportDownload(
+    BuildContext context, {
+    required String endpoint,
+    required String fileName,
+    required String reportTitle,
+  }) async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Generating Audit PDF Report...'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text('Generating $reportTitle...')),
+            ],
+          ),
+          duration: const Duration(seconds: 4),
+          backgroundColor: const Color(0xFF0F172A),
         ),
       );
-      final dio = Dio();
-      final endpoint = isComplaint
-          ? '/reports/complaint/$scanId/download'
-          : '/reports/$scanId/download';
 
+      final dio = Dio();
+      final url = '${ApiClient.getBaseUrl}$endpoint';
       final response = await dio.get(
-        '${ApiClient.getBaseUrl}$endpoint',
+        url,
         options: Options(responseType: ResponseType.bytes),
       );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Report generated & verified by Examiner Dev.'),
+            backgroundColor: AppTheme.emerald600,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
       await Printing.sharePdf(
         bytes: response.data,
-        filename: 'nirikshak_audit_$scanId.pdf',
+        filename: fileName,
       );
     } catch (e) {
       if (context.mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('PDF Download: $e')),
+          SnackBar(
+            content: Text('Report generation failed: $e'),
+            backgroundColor: AppTheme.dangerRed,
+          ),
         );
       }
     }
