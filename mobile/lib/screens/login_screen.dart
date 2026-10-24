@@ -166,6 +166,23 @@ class LoginScreen extends ConsumerWidget {
                     ),
                     child: const Text('CONTINUE TO PLATFORM', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   ),
+
+                  const SizedBox(height: 10),
+
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () => context.go('/splash'),
+                      icon: const Icon(Icons.radar_rounded, size: 14, color: AppTheme.emerald600),
+                      label: const Text(
+                        'View LMPC Splash Sequence',
+                        style: TextStyle(
+                          color: AppTheme.emerald700,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

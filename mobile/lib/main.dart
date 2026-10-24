@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/theme.dart';
+import 'screens/splash_screen.dart';
 import 'screens/citizen_home_screen.dart';
 import 'screens/complaint_screen.dart';
 import 'screens/compliance_result_screen.dart';
@@ -17,8 +18,12 @@ void main() {
 }
 
 final _router = GoRouter(
-  initialLocation: '/login',
+  initialLocation: '/splash',
   routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (context, state) => const SplashScreen(),
+    ),
     GoRoute(
       path: '/login',
       builder: (context, state) => const LoginScreen(),
