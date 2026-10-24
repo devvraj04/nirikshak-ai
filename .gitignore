@@ -45,6 +45,12 @@ backend/data/models/
 key/
 *.log
 
+# Stitch Design Artifacts
+stitch_designs/
+stitch_project.json
+stitch_screens.json
+download_stitch_screens.py
+
 # OS
 .DS_Store
 Thumbs.db
