@@ -8,14 +8,28 @@ class ApiClient {
 
   late final Dio dio;
 
+  // Allows overriding baseUrl via `flutter run --dart-define=API_URL=http://...`
+  static const String _overrideUrl = String.fromEnvironment('API_URL');
+
+  // Change to your laptop's IP only if testing wirelessly over a Mobile Hotspot (not campus Wi-Fi)
+  static const String _customLanIp = ''; 
+
   static String get getBaseUrl {
+    if (_overrideUrl.isNotEmpty) {
+      return _overrideUrl;
+    }
+    if (_customLanIp.isNotEmpty) {
+      return 'http://$_customLanIp:8080';
+    }
     if (kIsWeb) {
-      return 'http://192.168.0.147:8080';
+      return 'http://localhost:8080';
     }
     if (Platform.isAndroid) {
-      return 'http://192.168.0.147:8080';
+      // Uses adb reverse (run `adb reverse tcp:8080 tcp:8080` on PC)
+      // Works reliably on any Wi-Fi (bypasses campus AP isolation & firewalls)
+      return 'http://127.0.0.1:8080';
     }
-    return 'http://192.168.0.147:8080';
+    return 'http://localhost:8080';
   }
 
   ApiClient._internal() {

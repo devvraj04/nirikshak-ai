@@ -5,7 +5,7 @@ Write-Host "This script keeps the ADB reverse port alive"
 Write-Host "and automatically restarts Flutter if it crashes."
 Write-Host ""
 
-$FlutterDir = "d:\sih\mobile"
+$FlutterDir = "$PSScriptRoot\mobile"
 
 while ($true) {
     Write-Host "[+] Setting up ADB reverse port mapping..."
