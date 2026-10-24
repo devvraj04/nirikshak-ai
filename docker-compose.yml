@@ -94,6 +94,7 @@ services:
     volumes:
       - ./backend:/app
       - ./rag_documetns:/app/rag_documents:ro
+      - paddleocr_data:/root/.paddleocr
     depends_on:
       chromadb:
         condition: service_started
@@ -118,6 +119,7 @@ services:
     volumes:
       - ./backend:/app
       - ./rag_documetns:/app/rag_documents:ro
+      - paddleocr_data:/root/.paddleocr
     depends_on:
       chromadb:
         condition: service_started
@@ -130,3 +132,4 @@ volumes:
   chroma_data:
   redis_data:
   minio_data:
+  paddleocr_data:

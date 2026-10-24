@@ -40,7 +40,9 @@ mobile/.metadata
 
 # Data & Uploads
 backend/data/uploads/
+backend/uploads/
 backend/data/models/
+key/
 *.log
 
 # OS

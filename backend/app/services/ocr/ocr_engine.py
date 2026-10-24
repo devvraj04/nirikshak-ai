@@ -250,12 +250,10 @@ class OCREngine:
                 image_height=orig_h,
             )
 
-        # 4 rotations: 0°, 90° CW, 180°, 270° CW
+        # 0° and 90° CW rotations (cls=True automatically handles 180° and 270° inversions)
         orientations: List[Tuple[int, np.ndarray]] = [
             (0, img),
             (90, cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)),
-            (180, cv2.rotate(img, cv2.ROTATE_180)),
-            (270, cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)),
         ]
 
         collected_blocks: List[OCRBlock] = []

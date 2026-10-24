@@ -289,7 +289,7 @@ class DeclarationExtractor:
         )
 
         try:
-            candidate_models = [settings.llm_model, "groq/compound-mini", "groq/compound", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+            candidate_models = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", settings.llm_model]
             models_to_try = [m for m in dict.fromkeys(candidate_models) if m]
             content = None
 

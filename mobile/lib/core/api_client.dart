@@ -8,8 +8,8 @@ class ApiClient {
 
   late final Dio dio;
 
-  // Allows overriding baseUrl via `flutter run --dart-define=API_URL=http://...`
-  static const String _overrideUrl = String.fromEnvironment('API_URL');
+  // Points to local Docker backend over USB (adb reverse tcp:8080 tcp:8080)
+  static const String _overrideUrl = 'http://127.0.0.1:8080';
 
   // Change to your laptop's IP only if testing wirelessly over a Mobile Hotspot (not campus Wi-Fi)
   static const String _customLanIp = ''; 
@@ -39,6 +39,14 @@ class ApiClient {
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 300), // Increased to 5 mins for slow CPU OCR
         headers: {'Content-Type': 'application/json'},
+      ),
+    );
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          options.baseUrl = getBaseUrl;
+          return handler.next(options);
+        },
       ),
     );
   }

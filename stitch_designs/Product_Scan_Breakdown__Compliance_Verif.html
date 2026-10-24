@@ -1,0 +1,341 @@
+<!DOCTYPE html><html lang="en" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><title>Nirikshak AI</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-error-container": "#93000a", "on-primary": "#ffffff", "surface-container-low": "#f5f3ee", "outline": "#6d7a72", "primary-fixed-dim": "#68dba9", "tertiary-fixed-dim": "#4edea3", "on-background": "#1b1c19", "secondary-fixed-dim": "#bec6e0", "surface-tint": "#006c4a", "primary": "#006948", "on-tertiary-container": "#f5fff6", "on-tertiary-fixed-variant": "#005236", "tertiary": "#006947", "background": "#fbf9f3", "on-tertiary": "#ffffff", "primary-container": "#00855d", "secondary-container": "#dae2fd", "surface-container-highest": "#e4e2dd", "inverse-on-surface": "#f2f1eb", "on-error": "#ffffff", "on-secondary-fixed-variant": "#3f465c", "surface-bright": "#fbf9f3", "secondary-fixed": "#dae2fd", "outline-variant": "#bccac0", "surface-container": "#f0eee8", "surface-container-lowest": "#ffffff", "on-tertiary-fixed": "#002113", "secondary": "#565e74", "error": "#ba1a1a", "error-container": "#ffdad6", "on-primary-fixed": "#002114", "on-secondary-fixed": "#131b2e", "tertiary-container": "#00855b", "on-primary-fixed-variant": "#005137", "on-secondary": "#ffffff", "on-surface-variant": "#3d4a42", "primary-fixed": "#85f8c4", "on-primary-container": "#f5fff7", "surface-variant": "#e4e2dd", "surface": "#fbf9f3", "surface-container-high": "#eae8e2", "inverse-surface": "#30312d", "surface-dim": "#dcdad4", "inverse-primary": "#68dba9", "on-secondary-container": "#5c647a", "tertiary-fixed": "#6ffbbe", "on-surface": "#1b1c19" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xl": "2rem", "gutter-mobile": "0.75rem", "space-sm": "0.5rem", "space-md": "1rem", "space-lg": "1.5rem", "margin": "1.25rem", "gutter": "1rem", "margin-mobile": "1rem", "space-xs": "0.25rem" }, "fontFamily": { "title-md": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"], "body-md": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "display-lg": ["Plus Jakarta Sans"], "code-sm": ["JetBrains Mono"], "label-sm": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"] }, "fontSize": { "title-md": ["16px", { "lineHeight": "22px", "letterSpacing": "-0.005em", "fontWeight": "600" }], "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }], "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }], "headline-sm": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.03em", "fontWeight": "800" }], "code-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "-0.01em", "fontWeight": "500" }], "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.06em", "fontWeight": "700" }], "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.015em", "fontWeight": "700" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "label-lg": ["14px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "600" }], "display-lg-mobile": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.025em", "fontWeight": "800" }], "body-sm": ["13px", { "lineHeight": "18px", "letterSpacing": "0.005em", "fontWeight": "400" }] } } } }</script><style>@layer base{html,body{width:100%;margin:0;padding:0;background-color:#fbf9f3;color:#1b1c19;-webkit-tap-highlight-color:transparent;}body{overscroll-behavior-y:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style></head><body class="bg-surface font-body-md text-body-md text-on-surface antialiased flex flex-col min-h-screen"><main class="flex-1 flex flex-col relative w-full pb-28 bg-surface px-margin-mobile pt-safe"><div class="flex flex-col w-full pb-10">
+<!-- Top Navigation Bar -->
+<div class="flex items-center justify-between pt-5 pb-3 mb-3"><div class="flex items-center gap-3 min-w-0"><button aria-label="Go back" class="w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md shadow-sm border border-surface-container flex items-center justify-center text-on-surface active:scale-95 transition-transform shrink-0" onclick="window.history.back()" type="button"><span class="material-symbols-outlined text-[20px]">arrow_back</span></button><div class="flex items-center gap-2 min-w-0"><h1 class="font-headline-sm text-headline-sm font-bold text-on-surface tracking-tight truncate">Audit Breakdown</h1><span class="font-code-sm text-[11px] font-semibold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-md shrink-0">#SKU-4910</span></div></div><button class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-container-lowest/90 backdrop-blur-md border border-surface-container text-on-surface text-label-md font-semibold shadow-sm active:scale-95 transition-transform" type="button"><span class="material-symbols-outlined text-[18px] text-primary">picture_as_pdf</span><span class="">Export PDF</span></button></div>
+<!-- Product Hero Display Card -->
+<div class="relative overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm mb-4">
+<div class="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-primary/10 blur-2xl pointer-events-none"></div>
+<div class="p-space-md flex flex-col gap-3">
+<div class="flex items-start gap-3">
+<div class="relative shrink-0 w-24 h-24 rounded-lg bg-surface-container-low overflow-hidden flex items-center justify-center shadow-inner">
+<img alt="Haldiram's Aloo Bhujia 400g" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCA_Ls2KcCZV8p_K8mwTScvWVOk8UnpsErcOt5E037xvjHAjMUJbFxPq66ZxczkO_-GeT-Vsp6uXmKmnedYKjS8gE-vlC7c1DSJFRkyuZ69KHkoQqWe_1yLw7k3IYyWNRqEMF-neu4B8nwMl2PTmzSnFMVhpN_1u0dyXJ81LArLspTGNbzLbF5waL_OmITYpnmeWU0-wSJC2sV-4SM0-bqnWTUzGn06X8ug3HV8ld79oF6hbm7lXXeEug">
+<span class="absolute bottom-1 right-1 bg-primary text-on-primary rounded-full p-0.5 shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-[13px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-1 text-primary mb-1">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wide font-bold">LMPC Certified Verified</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-tight truncate">Haldiram's Aloo Bhujia</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Packaged Savoury Snack • LMPC Cat IV</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-label-sm font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+              Authentic Pack
+            </span>
+<span class="font-code-sm text-code-sm text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">
+              8904063200184
+            </span>
+</div>
+</div>
+</div>
+<!-- Quick Trust Seals Ribbon -->
+<div class="flex items-center justify-between pt-2 border-t border-surface-container-high bg-surface-container-low/60 -mx-4 -mb-4 px-4 py-2.5 rounded-b-xl">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[18px]">verified</span>
+<span class="font-label-sm text-label-sm text-on-surface font-semibold">Official Govt Registry Matched</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">2 mins ago</span>
+</div>
+</div>
+</div>
+<!-- Trust & Regulation Hero Metric Section -->
+<div class="relative overflow-hidden rounded-xl bg-surface-container-lowest shadow-sm p-space-md mb-4">
+<div class="flex items-center justify-between gap-3">
+<div class="flex-1 min-w-0">
+<span class="font-label-sm text-label-sm font-bold uppercase tracking-wider text-primary">Compliance Status</span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-0.5">Compliant &amp; Safe</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 leading-snug">
+          Audited under Legal Metrology (Packaged Commodities) Rules, 2011 &amp; FSSAI Reg.
+        </p>
+</div>
+<!-- Compliance Gauge (SVG Ring) -->
+<div class="relative w-20 h-20 shrink-0 flex items-center justify-center">
+<svg class="w-20 h-20 transform -rotate-90" viewBox="0 0 36 36">
+<path class="text-surface-container-high" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3.5"></path>
+<path class="text-primary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="96, 100" stroke-linecap="round" stroke-width="3.5"></path>
+</svg>
+<div class="absolute flex flex-col items-center justify-center text-center">
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface leading-none">96<span class="text-primary text-[13px]">%</span></span>
+<span class="font-label-sm text-[9px] uppercase tracking-tight text-on-surface-variant font-bold mt-0.5">Score</span>
+</div>
+</div>
+</div>
+<!-- Micro Regulatory Badges Grid -->
+<div class="grid grid-cols-3 gap-2 mt-3.5 pt-3 border-t border-surface-container">
+<div class="flex flex-col items-center text-center p-2 rounded-lg bg-surface-container-low">
+<span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings: 'FILL' 1;">rule</span>
+<span class="font-label-sm text-label-sm font-bold text-on-surface mt-1">8/8 Passed</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">Mandatory</span>
+</div>
+<div class="flex flex-col items-center text-center p-2 rounded-lg bg-surface-container-low">
+<span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings: 'FILL' 1;">price_check</span>
+<span class="font-label-sm text-label-sm font-bold text-on-surface mt-1">Zero Dual MRP</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">Rule 18 Compliant</span>
+</div>
+<div class="flex flex-col items-center text-center p-2 rounded-lg bg-surface-container-low">
+<span class="material-symbols-outlined text-[18px] text-primary" style="font-variation-settings: 'FILL' 1;">health_and_safety</span>
+<span class="font-label-sm text-label-sm font-bold text-on-surface mt-1">Valid FSSAI</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">Lic. Verified</span>
+</div>
+</div>
+</div>
+<!-- MRP Fairness Card (LMPC Rule 18 Verification) -->
+<div class="rounded-xl bg-surface-container-lowest shadow-sm p-space-md mb-4 relative overflow-hidden">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary text-[20px]">currency_rupee</span>
+<h4 class="font-title-md text-title-md text-on-surface">MRP &amp; Unit Price Audit</h4>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-sm text-label-sm font-bold">
+        Rule 18 Checked
+      </span>
+</div>
+<!-- Pricing Focus Zone -->
+<div class="bg-surface-container-low rounded-lg p-3 flex items-center justify-between mb-3">
+<div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase font-semibold">Declared MRP</span>
+<div class="flex items-baseline gap-1 mt-0.5">
+<span class="font-display-lg-mobile text-display-lg-mobile text-on-surface font-extrabold tracking-tight">₹110.00</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">(Incl. all taxes)</span>
+</div>
+</div>
+<div class="text-right">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase font-semibold">Unit Sale Price (USP)</span>
+<div class="font-title-md text-title-md font-bold text-primary mt-0.5">₹0.275 <span class="font-body-sm text-body-sm text-on-surface-variant font-normal">/ g</span></div>
+<span class="font-label-sm text-[10px] text-on-surface-variant">Amended Rule 6(1)(h)</span>
+</div>
+</div>
+<!-- Fair Price Diagnostic -->
+<div class="flex items-center gap-2 p-2.5 rounded-lg bg-primary-fixed/40 text-on-primary-fixed-variant mb-3">
+<span class="material-symbols-outlined text-[18px] shrink-0 text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div class="min-w-0 flex-1">
+<span class="font-label-md text-label-md font-bold block">Standard Fair Price Validated</span>
+<span class="font-body-sm text-[12px] leading-tight block text-on-surface-variant">Zero unauthorized dual-marking, tampering, or stickers detected on the packaging.</span>
+</div>
+</div>
+<!-- Comparative Table -->
+<div class="flex flex-col gap-2 pt-1">
+<div class="flex items-center justify-between text-body-sm">
+<span class="text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">assured_workload</span>
+          State Metrology Benchmark
+        </span>
+<span class="font-code-sm text-code-sm font-bold text-on-surface">₹110.00</span>
+</div>
+<div class="flex items-center justify-between text-body-sm">
+<span class="text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+          Historical Tracker
+        </span>
+<span class="font-label-sm text-label-sm text-on-surface">Was ₹105.00 (+₹5 inflation aligned)</span>
+</div>
+</div>
+</div>
+<!-- Expandable Breakdown Section -->
+<div class="flex flex-col gap-3">
+<!-- Card A: Essential Facts & Batch Authenticity -->
+<details class="group rounded-xl bg-surface-container-lowest shadow-sm overflow-hidden" open="">
+<summary class="flex items-center justify-between p-space-md cursor-pointer select-none">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">inventory_2</span>
+</span>
+<div>
+<h5 class="font-title-md text-title-md text-on-surface">Essential Facts &amp; Batch</h5>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Batch #AB-0926-N2 • Tolerance 0g</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant transition-transform duration-200 group-open:rotate-180">expand_more</span>
+</summary>
+<div class="px-space-md pb-space-md pt-1">
+<div class="grid grid-cols-2 gap-2.5">
+<div class="p-2.5 rounded-lg bg-surface-container-low">
+<span class="font-label-sm text-[10px] uppercase font-bold text-on-surface-variant block">Net Quantity</span>
+<span class="font-body-md text-body-md font-bold text-on-surface">400 g</span>
+<span class="font-label-sm text-[10px] text-primary block mt-0.5">±0g Legal Tolerance</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low">
+<span class="font-label-sm text-[10px] uppercase font-bold text-on-surface-variant block">Batch Number</span>
+<span class="font-code-sm text-code-sm font-bold text-on-surface">AB-0926-N2</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant block mt-0.5">Verified Database</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low">
+<span class="font-label-sm text-[10px] uppercase font-bold text-on-surface-variant block">Mfg Date</span>
+<span class="font-body-md text-body-md font-bold text-on-surface">08 / 2026</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant block mt-0.5">Month &amp; Year Declared</span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low">
+<span class="font-label-sm text-[10px] uppercase font-bold text-on-surface-variant block">Best Before</span>
+<span class="font-body-md text-body-md font-bold text-on-surface">02 / 2027</span>
+<span class="font-label-sm text-[10px] text-primary font-semibold block mt-0.5">6 Months Validity</span>
+</div>
+</div>
+<div class="mt-2.5 p-2.5 rounded-lg bg-surface-container-low flex items-start gap-2">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant shrink-0 mt-0.5">factory</span>
+<div>
+<span class="font-label-sm text-[10px] uppercase font-bold text-on-surface-variant block">Packer &amp; Origin</span>
+<p class="font-body-sm text-body-sm text-on-surface leading-snug">
+              Haldiram Snacks Pvt. Ltd., Sector 62, Noida, Gautam Buddha Nagar, Uttar Pradesh - 201301 (India)
+            </p>
+</div>
+</div>
+</div>
+</details>
+<!-- Card B: Ingredients & Chemical Safety -->
+<details class="group rounded-xl bg-surface-container-lowest shadow-sm overflow-hidden">
+<summary class="flex items-center justify-between p-space-md cursor-pointer select-none">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">sanitizer</span>
+</span>
+<div>
+<h5 class="font-title-md text-title-md text-on-surface">Ingredients &amp; Food Safety</h5>
+<span class="font-label-sm text-label-sm text-primary font-semibold">100% Safe to Consume</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant transition-transform duration-200 group-open:rotate-180">expand_more</span>
+</summary>
+<div class="px-space-md pb-space-md pt-1 flex flex-col gap-2.5">
+<div class="flex flex-wrap gap-1.5">
+<span class="px-2.5 py-1 rounded-full bg-surface-container-low font-label-sm text-label-sm font-semibold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-primary text-[14px]">check</span> Zero Synthetic Dyes
+          </span>
+<span class="px-2.5 py-1 rounded-full bg-surface-container-low font-label-sm text-label-sm font-semibold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-primary text-[14px]">check</span> Trans Fat: 0g
+          </span>
+<span class="px-2.5 py-1 rounded-full bg-surface-container-low font-label-sm text-label-sm font-semibold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-primary text-[14px]">check</span> Class II Approved
+          </span>
+</div>
+<div class="p-2.5 rounded-lg bg-surface-container-low flex items-center gap-2">
+<span class="material-symbols-outlined text-amber-600 text-[20px] shrink-0">warning</span>
+<div class="text-on-surface text-body-sm leading-tight">
+<span class="font-bold text-on-surface block text-[12px]">Mandatory Allergen Declaration</span>
+            Contains Peanut Oil, Tepary Bean Flour &amp; Gram Flour.
+          </div>
+</div>
+<div class="flex items-center justify-between text-body-sm pt-1">
+<span class="text-on-surface-variant text-[12px]">FSSAI Central License</span>
+<span class="font-code-sm text-code-sm font-bold text-on-surface">#10012011000677</span>
+</div>
+</div>
+</details>
+<!-- Card C: LMPC Statutory Rules Verification (8 Checklist Items) -->
+<details class="group rounded-xl bg-surface-container-lowest shadow-sm overflow-hidden" open="">
+<summary class="flex items-center justify-between p-space-md cursor-pointer select-none">
+<div class="flex items-center gap-2">
+<span class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">gavel</span>
+</span>
+<div>
+<h5 class="font-title-md text-title-md text-on-surface">LMPC Statutory Rules Verification</h5>
+<span class="font-label-sm text-label-sm text-primary font-bold">8 of 8 Passed (100% Legal Conformity)</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant transition-transform duration-200 group-open:rotate-180">expand_more</span>
+</summary>
+<div class="px-space-md pb-space-md pt-1">
+<div class="divide-y divide-surface-container">
+<!-- Item 1 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Manufacturer &amp; Packer Details</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 6(1)(a)</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+<!-- Item 2 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Generic Name of Commodity</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 6(1)(b)</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+<!-- Item 3 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Net Quantity in Standard Units</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 6(1)(c)</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+<!-- Item 4 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Month &amp; Year of Manufacture</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 6(1)(d)</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+<!-- Item 5 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Consumer Care Cell Details</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 6(1)(n)</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+<!-- Item 6 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Maximum Retail Price (Incl. Taxes)</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 6(1)(e)</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+<!-- Item 7 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Unit Sale Price (USP) Legibly Placed</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 6(1)(h)</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+<!-- Item 8 -->
+<div class="py-2 flex items-center justify-between gap-2">
+<div class="min-w-0">
+<span class="font-body-sm text-body-sm font-semibold text-on-surface block truncate">Machine Readable Barcode / QR</span>
+<span class="font-label-sm text-[10px] text-on-surface-variant">LMPC Rule 18</span>
+</div>
+<span class="shrink-0 flex items-center gap-1 font-label-sm text-label-sm font-bold text-primary bg-primary-fixed/40 px-2 py-0.5 rounded-full">
+<span class="material-symbols-outlined text-[14px]">check</span> Pass
+            </span>
+</div>
+</div>
+</div>
+</details>
+</div>
+<!-- Bottom Interactive Citizen Action Dock -->
+<div class="mt-6 flex flex-col gap-2.5">
+<button class="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-primary text-on-primary font-title-md text-title-md shadow-md active:scale-[0.99] transition-transform" type="button">
+<span class="material-symbols-outlined text-[20px]">share</span>
+<span class="">Share Inspection Report</span>
+</button>
+<button class="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-error-container text-on-error-container font-label-lg text-label-lg active:scale-[0.99] transition-transform shadow-sm" type="button">
+<span class="material-symbols-outlined text-error text-[18px]">report_problem</span>
+<span class="">Report Overcharging / File Grievance</span>
+</button>
+<p class="text-center font-label-sm text-[11px] text-on-surface-variant mt-1">
+      Certificates generated by Nirikshak AI are admissible under Sec 65B of Indian Evidence Act.
+    </p>
+</div>
+</div></main><nav class="fixed bottom-0 w-full z-50 pb-safe pointer-events-none" data-active-classes="text-primary font-bold"><div class="pointer-events-auto mx-margin-mobile mb-3 rounded-full bg-surface-container-lowest/85 backdrop-blur-xl shadow-[0_8px_24px_-4px_rgba(15,23,42,0.08)] px-5 py-2.5 flex items-center justify-between relative"><a aria-current="page" class="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] transition-colors text-primary font-bold" data-path="citizen-dashboard" href="#"><span class="material-symbols-outlined text-[22px]">home</span><span class="font-label-sm text-label-sm tracking-tight">Home</span></a><a class="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-on-surface-variant hover:text-on-surface transition-colors" data-path="scan-history" href="#"><span class="material-symbols-outlined text-[22px]">history</span><span class="font-label-sm text-label-sm tracking-tight">History</span></a><div class="relative -top-5 flex flex-col items-center"><a class="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-[0_12px_28px_-4px_rgba(0,105,72,0.45)] ring-4 ring-surface active:scale-95 transition-transform relative" data-path="live-scanner" href="#"><span class="absolute inset-0 rounded-full bg-primary-fixed opacity-40 animate-ping pointer-events-none"></span><span class="material-symbols-outlined text-[28px] relative z-10">qr_code_scanner</span></a><span class="font-label-sm text-label-sm font-bold text-primary mt-1">Scan</span></div><a class="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-on-surface-variant hover:text-on-surface transition-colors" data-path="legal-handbook" href="#"><span class="material-symbols-outlined text-[22px]">gavel</span><span class="font-label-sm text-label-sm tracking-tight">Legal Help</span></a><a class="flex flex-col items-center justify-center min-w-[48px] min-h-[44px] text-on-surface-variant hover:text-on-surface transition-colors" data-path="citizen-rewards" href="#"><span class="material-symbols-outlined text-[22px]">military_tech</span><span class="font-label-sm text-label-sm tracking-tight">Rewards</span></a></div></nav></body></html>

@@ -105,12 +105,10 @@ Retrieved Legal Metrology Statutory Chunks & Documents:
 {full_context_str if full_context_str.strip() else 'Apply authoritative provisions of the Legal Metrology Act, 2009 and Legal Metrology (Packaged Commodities) Rules, 2011.'}
 """
             candidate_models = [
+                "qwen/qwen3.8-27b",
                 settings.llm_model,
-                "groq/compound-mini",
-                "groq/compound",
                 "openai/gpt-oss-120b",
                 "openai/gpt-oss-20b",
-                "qwen/qwen3.6-27b",
             ]
             models_to_try = [m for m in dict.fromkeys(candidate_models) if m]
 
