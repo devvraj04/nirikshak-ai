@@ -10,7 +10,7 @@ import '../widgets/aura_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/pulse_indicator.dart';
 import '../widgets/health_star_rating.dart';
-// import '../services/health_star_rating.dart'; // removed - not needed
+import '../services/source_registry.dart';
 import '../widgets/price_history_chart.dart';
 import '../widgets/nirikshak_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +50,46 @@ String _structuredTableTab = 'front';
   bool _expandedSurrogate = false;
   bool _expandedFullDeclarations = false;
   bool _expandedRawOcr = false;
+
+  /// Launches verified official source URLs with feedback and fallback
+  Future<void> _openOfficialSource({
+    required BuildContext context,
+    required String url,
+    required String title,
+  }) async {
+    HapticFeedback.lightImpact();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.verified_user_rounded, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Opening official source: $title',
+                style: const TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF0F172A),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+
+    try {
+      final uri = Uri.parse(url);
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      }
+    } catch (e) {
+      debugPrint('Error launching URL $url: $e');
+    }
+  }
 
   void _resolveImageAspect(String url) {
     if (url.isEmpty || _imageAspectRatios.containsKey(url)) return;
@@ -253,8 +293,7 @@ String _structuredTableTab = 'front';
                       _buildHeader(context, isComplaint, scanId),
                       const SizedBox(height: 12),
                       _buildScanIdPill(context, scanId),
-                      HealthStarRating(item: item),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       if (isComplaint)
                         _buildComplaintDetails(context)
                       else
@@ -3549,9 +3588,32 @@ String _structuredTableTab = 'front';
                     ),
                   ),
                   const SizedBox(height: 5),
-                  const Text(
-                    'W.H.O. Standard Met',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF94A3B8)),
+                  InkWell(
+                    onTap: () {
+                      final src = SourceRegistry.getPrimarySource('recommendation_who');
+                      _openOfficialSource(
+                        context: context,
+                        url: src?.url ?? 'https://iris.who.int/handle/10665/67322',
+                        title: src?.title ?? 'Reduced Osmolarity Oral Rehydration Salts (ORS) Formulation (WHO & UNICEF)',
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'W.H.O. Standard Met',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF2563EB),
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                        SizedBox(width: 3),
+                        Icon(Icons.open_in_new_rounded, size: 9, color: Color(0xFF2563EB)),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -3562,63 +3624,97 @@ String _structuredTableTab = 'front';
           const Divider(height: 1, thickness: 0.8, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 12),
 
-          // Quick Verified Feature Pills Row
+          // Quick Verified Feature Pills Row with Backed-by-Sources Links
           Wrap(
             spacing: 8,
             runSpacing: 6,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.check_rounded,
-                      size: 13,
-                      color: Color(0xFF2563EB),
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'W.H.O. Recommended',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1D4ED8),
+              InkWell(
+                onTap: () {
+                  final src = SourceRegistry.getPrimarySource('recommendation_who');
+                  _openOfficialSource(
+                    context: context,
+                    url: src?.url ?? 'https://iris.who.int/handle/10665/67322',
+                    title: src?.title ?? 'Reduced Osmolarity Oral Rehydration Salts (ORS) Formulation (WHO & UNICEF)',
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_rounded,
+                        size: 13,
+                        color: Color(0xFF2563EB),
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 4),
+                      Text(
+                        'W.H.O. Recommended',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1D4ED8),
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(
+                        Icons.open_in_new_rounded,
+                        size: 11,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFFDE68A)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.warning_amber_rounded,
-                      size: 13,
-                      color: Color(0xFFD97706),
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Oral Administration Only',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFB45309),
+              InkWell(
+                onTap: () {
+                  final src = SourceRegistry.getPrimarySource('oral_administration');
+                  _openOfficialSource(
+                    context: context,
+                    url: src?.url ?? 'https://www.fda.gov/regulatory-information/search-fda-guidance-documents',
+                    title: src?.title ?? 'FDA Guidance: Oral Drug Route Administration Standards',
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 13,
+                        color: Color(0xFFD97706),
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 4),
+                      Text(
+                        'Oral Administration Only',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFB45309),
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(
+                        Icons.open_in_new_rounded,
+                        size: 11,
+                        color: Color(0xFFD97706),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -4699,73 +4795,115 @@ String _structuredTableTab = 'front';
               runSpacing: 8,
               children: [
                 if (resolvedFssai != null && resolvedFssai.isNotEmpty && resolvedFssai != 'null')
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.shield_rounded, size: 13, color: Color(0xFF059669)),
-                        const SizedBox(width: 5),
-                        Text(
-                          'FSSAI: $resolvedFssai',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF065F46), fontFamily: 'monospace'),
-                        ),
-                      ],
+                  InkWell(
+                    onTap: () {
+                      final src = SourceRegistry.getPrimarySource('fssai_license');
+                      _openOfficialSource(
+                        context: context,
+                        url: src?.url ?? 'https://www.fssai.gov.in/',
+                        title: src?.title ?? 'FSSAI Food Safety Compliance System',
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.shield_rounded, size: 13, color: Color(0xFF059669)),
+                          const SizedBox(width: 5),
+                          Text(
+                            'FSSAI: $resolvedFssai',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF065F46), fontFamily: 'monospace'),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.open_in_new_rounded, size: 11, color: Color(0xFF059669)),
+                        ],
+                      ),
                     ),
                   ),
                 if (vegIndicator != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFFFECDD3) : const Color(0xFFBBF7D0),
-                      ),
+                  InkWell(
+                    onTap: () => _openOfficialSource(
+                      context: context,
+                      url: 'https://www.fssai.gov.in/upload/uploadfiles/files/Compendium_Packaging_Labelling_Regulations_2021.pdf',
+                      title: 'FSSAI Packaging & Labelling: Vegetarian & Non-Veg Standard',
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.circle,
-                          size: 10,
-                          color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFFFECDD3) : const Color(0xFFBBF7D0),
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          vegIndicator.toString().toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.circle,
+                            size: 10,
+                            color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 5),
+                          Text(
+                            vegIndicator.toString().toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.open_in_new_rounded,
+                            size: 11,
+                            color: vegIndicator.toString().toLowerCase().contains('non') ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ...certsList.map((c) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                  final certName = c.toString();
+                  final source = SourceRegistry.getPrimarySource(certName);
+                  final targetUrl = source?.url ?? 'https://www.services.bis.gov.in/php/BIS_2.0/';
+                  final sourceTitle = source?.title ?? '$certName Regulatory Standard';
+
+                  return InkWell(
+                    onTap: () => _openOfficialSource(
+                      context: context,
+                      url: targetUrl,
+                      title: sourceTitle,
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.check_circle_outline_rounded, size: 13, color: Color(0xFF475569)),
-                        const SizedBox(width: 5),
-                        Text(
-                          c.toString(),
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                        ),
-                      ],
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.check_circle_outline_rounded, size: 13, color: Color(0xFF475569)),
+                          const SizedBox(width: 5),
+                          Text(
+                            certName,
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.open_in_new_rounded, size: 11, color: Color(0xFF475569)),
+                        ],
+                      ),
                     ),
                   );
                 }),
@@ -5217,25 +5355,47 @@ String _structuredTableTab = 'front';
                   name.toLowerCase().contains('carbohydrate') ||
                   name.toLowerCase().contains('fat');
 
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isEven ? Colors.white : const Color(0xFFF8FAFC),
-                  border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 0.8)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 5,
-                      child: Text(
-                        name,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: isMajor ? FontWeight.w800 : FontWeight.w600,
-                          color: const Color(0xFF0F172A),
+              final source = SourceRegistry.getPrimarySource(name);
+              final hasSource = source != null;
+
+              return InkWell(
+                onTap: hasSource
+                    ? () => _openOfficialSource(
+                          context: context,
+                          url: source.url,
+                          title: source.title,
+                        )
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isEven ? Colors.white : const Color(0xFFF8FAFC),
+                    border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 0.8)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isMajor ? FontWeight.w800 : FontWeight.w600,
+                                  color: hasSource ? const Color(0xFF1D4ED8) : const Color(0xFF0F172A),
+                                ),
+                              ),
+                            ),
+                            if (hasSource) ...[
+                              const SizedBox(width: 4),
+                              const Icon(Icons.open_in_new_rounded, size: 10, color: Color(0xFF2563EB)),
+                            ],
+                          ],
                         ),
                       ),
-                    ),
                     Expanded(
                       flex: 3,
                       child: Text(
@@ -5264,8 +5424,9 @@ String _structuredTableTab = 'front';
                     ),
                   ],
                 ),
-              );
-            }),
+              ),
+            );
+          }),
           ],
         ),
       ),
@@ -5407,6 +5568,30 @@ String _structuredTableTab = 'front';
               ),
             ),
 
+            // Sub-header info bar: Backed by verified standards
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              color: const Color(0xFF1E293B),
+              child: const Row(
+                children: [
+                  Icon(Icons.verified_outlined, size: 12, color: Color(0xFF60A5FA)),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'BACKED BY CODEX ALIMENTARIUS, FSSAI & PUBCHEM • TAP TO VIEW',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF93C5FD),
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // Exact Table Column Headers
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -5446,7 +5631,7 @@ String _structuredTableTab = 'front';
               ),
             ),
 
-            // Exact Tabular Rows
+            // Exact Tabular Rows (Backed by Codex GSFA / FSSAI / PubChem)
             if (ingredientRows.isNotEmpty)
               ...ingredientRows.asMap().entries.map((entry) {
                 final idx = entry.key;
@@ -5457,55 +5642,81 @@ String _structuredTableTab = 'front';
                 final addict = (ing['addictiveness'] ?? 'NONE').toString().toUpperCase();
                 final isHigh = addict == 'HIGH';
                 final isMed = addict == 'MEDIUM';
+                final src = SourceRegistry.getIngredientSource(name, cat);
 
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7.5),
-                  decoration: BoxDecoration(
-                    color: isEven ? Colors.white : const Color(0xFFF8FAFC),
-                    border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 0.8)),
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        child: Text(
-                          '${idx + 1}',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B), fontFamily: 'monospace'),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 5,
-                        child: Text(
-                          name,
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          cat,
-                          style: const TextStyle(fontSize: 10, color: Color(0xFF475569)),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Align(
-                          alignment: Alignment.centerRight,
+                return InkWell(
+                  onTap: () {
+                    _openOfficialSource(
+                      context: context,
+                      url: src.url,
+                      title: src.title,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7.5),
+                    decoration: BoxDecoration(
+                      color: isEven ? Colors.white : const Color(0xFFF8FAFC),
+                      border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0), width: 0.8)),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 24,
                           child: Text(
-                            isHigh ? '⚡ High' : (isMed ? '⚠️ Habit' : '✓ No'),
-                            style: TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                              color: isHigh ? const Color(0xFFDC2626) : (isMed ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
+                            '${idx + 1}',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B), fontFamily: 'monospace'),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 5,
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.open_in_new_rounded,
+                                size: 10,
+                                color: Color(0xFF2563EB),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            cat,
+                            style: const TextStyle(fontSize: 10, color: Color(0xFF475569)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              isHigh ? '⚡ High' : (isMed ? '⚠️ Habit' : '✓ No'),
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                color: isHigh ? const Color(0xFFDC2626) : (isMed ? const Color(0xFFD97706) : const Color(0xFF16A34A)),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 );
               })
