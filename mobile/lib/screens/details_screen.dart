@@ -9,6 +9,8 @@ import '../core/theme.dart';
 import '../widgets/aura_background.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/pulse_indicator.dart';
+import '../widgets/health_star_rating.dart';
+// import '../services/health_star_rating.dart'; // removed - not needed
 import '../widgets/price_history_chart.dart';
 import '../widgets/nirikshak_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -245,6 +247,7 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                       _buildHeader(context, isComplaint, scanId),
                       const SizedBox(height: 12),
                       _buildScanIdPill(context, scanId),
+                      HealthStarRating(item: item),
                       const SizedBox(height: 16),
                       if (isComplaint)
                         _buildComplaintDetails(context)
