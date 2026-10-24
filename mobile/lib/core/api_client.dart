@@ -202,4 +202,11 @@ class ApiClient {
     });
     return Map<String, dynamic>.from(response.data);
   }
+
+  /// Trigger visual region cropping for nutrition table and ingredient declarations.
+  Future<Map<String, dynamic>> recropScanPanels(String scanId) async {
+    final response = await dio.post('/scans/$scanId/recrop-panels');
+    return Map<String, dynamic>.from(response.data);
+  }
 }
+

@@ -36,6 +36,9 @@ class Scan(Base):
     )
 
     image_urls: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # {"front": "...", "back": "..."}
+    nutrition_table_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    ingredients_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    crop_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     geo_location: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # {"lat": ..., "lng": ...}
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

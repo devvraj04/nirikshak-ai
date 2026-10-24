@@ -13,6 +13,9 @@ class ScanBase(BaseModel):
     notes: str | None = None
     geo_location: dict | None = None
     image_urls: dict | None = None
+    nutrition_table_image_url: str | None = None
+    ingredients_image_url: str | None = None
+    crop_metadata: dict | None = None
 
 
 class ScanCreate(ScanBase):
@@ -25,6 +28,9 @@ class ScanRead(ScanBase):
     product_id: uuid.UUID | None = None
     status: ScanStatus
     overall_compliance: ComplianceStatus | None = None
+    nutrition_table_image_url: str | None = None
+    ingredients_image_url: str | None = None
+    crop_metadata: dict | None = None
     created_at: datetime
     completed_at: datetime | None = None
 

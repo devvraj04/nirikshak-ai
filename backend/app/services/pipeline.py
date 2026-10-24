@@ -22,6 +22,7 @@ from app.services.rules.rule_engine import RuleEngine
 from app.services.storage import StorageService
 from app.services.ingredients.ingredient_engine import ingredient_engine
 from app.services.surrogate.surrogate_engine import surrogate_engine
+from app.services.extraction.panel_cropper import packaging_cropper
 
 logger = get_logger("services.pipeline")
 
@@ -35,6 +36,7 @@ class CompliancePipeline:
         self.rag_pipeline = RAGPipeline()
         self.rule_engine = RuleEngine()
         self.storage = StorageService()
+        self.panel_cropper = packaging_cropper
 
     def _crop_evidence_region(self, image_path: str, bbox: List[List[float]], scan_id: uuid.UUID, field_name: str) -> Optional[str]:
         """Crop bounding box region from image and save as evidence artifact."""
@@ -392,6 +394,20 @@ class CompliancePipeline:
                 )
                 db.add(evidence_record)
 
+            # 5. Visual Region Cropping for Nutrition Table and Ingredients
+            try:
+                crop_outcome = self.panel_cropper.process_packaging_images(
+                    panel_images=items,
+                    scan_id=scan.id,
+                    all_ocr_bboxes=all_bboxes
+                )
+                scan.nutrition_table_image_url = crop_outcome.get("nutrition_table_image")
+                scan.ingredients_image_url = crop_outcome.get("ingredients_image")
+                scan.crop_metadata = crop_outcome.get("crop_metadata")
+                db.add(scan)
+            except Exception as e:
+                logger.warning(f"Packaging panel cropping encountered non-fatal error: {e}")
+
             await db.commit()
 
             logger.info(f"Scan {scan.id} processing finished. Overall Status: {report.overall_status}")
@@ -403,6 +419,9 @@ class CompliancePipeline:
                 "rule_definitions_version": report.rule_definitions_version,
                 "product_id": str(product.id) if product else None,
                 "image_urls": scan.image_urls,
+                "nutrition_table_image": scan.nutrition_table_image_url,
+                "ingredients_image": scan.ingredients_image_url,
+                "crop_metadata": scan.crop_metadata,
                 "digital_twin_discrepancies": discrepancies,
                 "all_detected_text": combined_ocr_text,
                 "ocr_transcriptions": [

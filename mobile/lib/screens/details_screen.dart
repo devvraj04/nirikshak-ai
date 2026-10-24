@@ -456,6 +456,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
 
         const SizedBox(height: 20),
 
+        // 1B. ISOLATED VISUAL CROPS (Nutrition Table & Ingredients)
+        _buildVisualCropEvidenceSection(context, Map<String, dynamic>.from(item), scanId),
+
+        const SizedBox(height: 20),
+
         // 2. PACKAGING PHOTO & VISUAL OCR STUDIO (4-WAY ROTATION)
         _buildPackagingOcrStudio(
           context: context,
@@ -550,7 +555,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
     return GlassCard(
       borderRadius: 18,
       padding: const EdgeInsets.all(16),
-      border: Border.all(color: borderColor, width: 1.5),
+      borderColor: borderColor,
+      borderWidth: 1.5,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -831,6 +837,307 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // --- 1B. Isolated Visual Crop Evidence Section ---
+  bool _recroppingPanels = false;
+
+  Widget _buildVisualCropEvidenceSection(BuildContext context, Map<String, dynamic> item, String scanId) {
+    final String? nutritionCrop = (item['nutrition_table_image'] ?? item['nutrition_table_image_url'] ?? _ocrDetails?['nutrition_table_image'] ?? _ocrDetails?['nutrition_table_image_url'])?.toString();
+    final String? ingredientsCrop = (item['ingredients_image'] ?? item['ingredients_image_url'] ?? _ocrDetails?['ingredients_image'] ?? _ocrDetails?['ingredients_image_url'])?.toString();
+
+    final bool hasNutrition = nutritionCrop != null && nutritionCrop.isNotEmpty;
+    final bool hasIngredients = ingredientsCrop != null && ingredientsCrop.isNotEmpty;
+
+    return GlassCard(
+      borderRadius: 18,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: AppTheme.emerald600.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.crop_free_rounded,
+                      color: AppTheme.emerald600,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ISOLATED VISUAL CROPS',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.8,
+                          color: AppTheme.slate500,
+                        ),
+                      ),
+                      Text(
+                        'Nutrition & Formulation Panels',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.slate900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (_recroppingPanels)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.emerald600),
+                )
+              else
+                GestureDetector(
+                  onTap: () async {
+                    setState(() => _recroppingPanels = true);
+                    try {
+                      final res = await _apiClient.recropScanPanels(scanId);
+                      if (mounted) {
+                        setState(() {
+                          _ocrDetails = _ocrDetails ?? {};
+                          _ocrDetails!['nutrition_table_image'] = res['nutrition_table_image'];
+                          _ocrDetails!['ingredients_image'] = res['ingredients_image'];
+                          widget.item['nutrition_table_image'] = res['nutrition_table_image'];
+                          widget.item['ingredients_image'] = res['ingredients_image'];
+                          _recroppingPanels = false;
+                        });
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Visual regions cropped successfully!'),
+                              backgroundColor: AppTheme.emerald600,
+                            ),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        setState(() => _recroppingPanels = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error cropping panels: $e'),
+                              backgroundColor: AppTheme.dangerRed,
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.slate100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.slate200),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.refresh_rounded, size: 12, color: AppTheme.slate600),
+                        SizedBox(width: 4),
+                        Text(
+                          'Re-crop',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.slate700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              // Nutrition Table Crop Card
+              Expanded(
+                child: _buildCropThumbnailCard(
+                  title: 'Nutrition Table',
+                  subtitle: hasNutrition ? 'Tap to view full crop' : 'Not detected',
+                  cropUrl: nutritionCrop,
+                  icon: Icons.restaurant_menu_rounded,
+                  badgeText: hasNutrition ? 'TABLE' : 'N/A',
+                  badgeColor: hasNutrition ? AppTheme.emerald600 : AppTheme.slate400,
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Ingredients Section Crop Card
+              Expanded(
+                child: _buildCropThumbnailCard(
+                  title: 'Ingredients List',
+                  subtitle: hasIngredients ? 'Tap to view full crop' : 'Not detected',
+                  cropUrl: ingredientsCrop,
+                  icon: Icons.format_list_bulleted_rounded,
+                  badgeText: hasIngredients ? 'FORMULA' : 'N/A',
+                  badgeColor: hasIngredients ? const Color(0xFF3B82F6) : AppTheme.slate400,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCropThumbnailCard({
+    required String title,
+    required String subtitle,
+    required String? cropUrl,
+    required IconData icon,
+    required String badgeText,
+    required Color badgeColor,
+  }) {
+    final bool hasImage = cropUrl != null && cropUrl.isNotEmpty;
+    final fullUrl = hasImage
+        ? (cropUrl.startsWith('http') ? cropUrl : '${ApiClient.getBaseUrl}$cropUrl')
+        : null;
+
+    return GestureDetector(
+      onTap: () {
+        if (fullUrl != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => FullScreenImageViewer(imageUrl: fullUrl),
+            ),
+          );
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: hasImage ? badgeColor.withValues(alpha: 0.35) : AppTheme.slate200,
+            width: hasImage ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 100,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: AppTheme.slate100,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: hasImage
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(
+                          fullUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Center(
+                            child: Icon(icon, color: AppTheme.slate400, size: 28),
+                          ),
+                        ),
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.zoom_in_rounded,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, color: AppTheme.slate300, size: 26),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'No crop available',
+                            style: TextStyle(fontSize: 9, color: AppTheme.slate400, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.slate900,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: badgeColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w900,
+                      color: badgeColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 9.5,
+                color: AppTheme.slate500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

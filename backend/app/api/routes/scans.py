@@ -18,6 +18,7 @@ from app.services.storage import StorageService
 from app.services.rag.violation_analyzer import LegalViolationAnalyzer
 from app.services.ingredients.ingredient_engine import ingredient_engine
 from app.services.surrogate.surrogate_engine import surrogate_engine
+from app.services.extraction.panel_cropper import packaging_cropper
 
 router = APIRouter(prefix="/scans", tags=["Product Scans"])
 
@@ -178,6 +179,9 @@ async def get_scan_details(
         "status": scan.status.value,
         "overall_compliance": scan.overall_compliance.value if scan.overall_compliance else None,
         "image_urls": scan.image_urls,
+        "nutrition_table_image": scan.nutrition_table_image_url,
+        "ingredients_image": scan.ingredients_image_url,
+        "crop_metadata": scan.crop_metadata,
         "all_detected_text": all_detected_text,
         "front_panel_table": raw_decl.get("front_panel_table", []),
         "back_panel_table": raw_decl.get("back_panel_table", []),
@@ -370,3 +374,65 @@ async def analyze_ingredients_direct(payload: IngredientAnalyzeRequest) -> Dict[
     and identifies all statutory allergen & health sensitivity risks.
     """
     return ingredient_engine.analyze_full_product(payload.ingredients_text)
+
+
+@router.post("/{scan_id}/recrop-panels")
+async def recrop_scan_panels_endpoint(
+    scan_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Re-trigger visual region cropping for an existing scan session.
+    Detects and isolates the nutrition table and ingredient list into separate images.
+    """
+    scan = await db.get(Scan, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan record not found.")
+
+    image_urls = scan.image_urls or {}
+    if not image_urls:
+        raise HTTPException(status_code=400, detail="Scan record has no attached image URLs.")
+
+    image_paths = []
+    for side in ["back", "left", "right", "front", "top", "bottom", "main"]:
+        rel_path = image_urls.get(side)
+        if rel_path:
+            abs_path = _resolve_image_path(rel_path)
+            if abs_path:
+                image_paths.append((side, abs_path))
+
+    if not image_paths:
+        raise HTTPException(status_code=400, detail="Uploaded images could not be located on disk.")
+
+    # Retrieve existing OCR bounding boxes for fallback
+    ocr_stmt = select(OCRResult).where(OCRResult.scan_id == scan_id)
+    ocr_res = await db.execute(ocr_stmt)
+    ocr_rows = ocr_res.scalars().all()
+    all_bboxes = []
+    for r in ocr_rows:
+        if isinstance(r.bounding_boxes, list):
+            for b in r.bounding_boxes:
+                b["_source_image"] = r.image_url
+                all_bboxes.append(b)
+
+    crop_outcome = packaging_cropper.process_packaging_images(
+        panel_images=image_paths,
+        scan_id=scan.id,
+        all_ocr_bboxes=all_bboxes,
+    )
+
+    scan.nutrition_table_image_url = crop_outcome.get("nutrition_table_image")
+    scan.ingredients_image_url = crop_outcome.get("ingredients_image")
+    scan.crop_metadata = crop_outcome.get("crop_metadata")
+    db.add(scan)
+    await db.commit()
+    await db.refresh(scan)
+
+    return {
+        "scan_id": str(scan.id),
+        "nutrition_table_image": scan.nutrition_table_image_url,
+        "ingredients_image": scan.ingredients_image_url,
+        "crop_metadata": scan.crop_metadata,
+        "message": "Visual panel cropping completed successfully."
+    }
+

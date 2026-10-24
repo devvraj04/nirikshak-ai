@@ -71,6 +71,7 @@ class Settings(BaseSettings):
 
     # --- LLM ---
     groq_api_key: str = ""
+    gemini_api_key: str = ""
     llm_provider: Literal["groq", "openai", "gemini"] = "groq"
     llm_model: str = "groq/compound-mini"
 

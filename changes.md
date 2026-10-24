@@ -163,5 +163,52 @@ This document records all modifications made to the Flutter mobile application (
   - **Floating Dock Bottom Action Bar**: Fixed glass panel with quick "Re-scan" and "Export Audit Report" actions.
 - **Reason**: Fulfills the complete luxury Nirikshak AI product breakdown design specification with realistic 3D carton packaging avatar reconstruction for every scanned product.
 
+---
 
+### 16. Nutrition Table & Ingredient Section Visual Cropping Engine (Backend Implementation)
+- **Status**: Backend Core Implemented & Integrated
+- **Implemented Files**:
+  - [`tasks.md`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/tasks.md) (New): Engineering task backlog with tracked implementation phases.
+  - [`backend/app/services/extraction/panel_cropper.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/services/extraction/panel_cropper.py) (New): Core `PackagingRegionCropper` engine supporting Google Gemini 1.5 Flash (Free Tier), Groq Llama 3.2 11B Vision (Free Tier), and deterministic PaddleOCR anchor clustering fallback.
+  - [`backend/app/services/extraction/__init__.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/services/extraction/__init__.py): Exported `PackagingRegionCropper` and `packaging_cropper` singleton.
+  - [`backend/app/models/scan.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/models/scan.py): Added `nutrition_table_image_url`, `ingredients_image_url`, and `crop_metadata` JSON columns.
+  - [`backend/app/schemas/scan.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/schemas/scan.py): Added `nutrition_table_image_url`, `ingredients_image_url`, and `crop_metadata` to `ScanBase` and `ScanRead`.
+  - [`backend/app/core/config.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/core/config.py): Added `gemini_api_key: str = ""` setting.
+  - [`backend/app/services/pipeline.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/services/pipeline.py): Hooked `PackagingRegionCropper` into `process_scan()`, executing panel scan prioritization (`back -> left -> right -> front -> top -> bottom`), persisting crop URLs, and returning them in the outcome dictionary.
+  - [`backend/app/api/routes/scans.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/api/routes/scans.py): Updated `get_scan_details` to return cropped image URLs; added `POST /api/v1/scans/{scan_id}/recrop-panels` for on-demand re-cropping.
+  - [`backend/requirements.txt`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/requirements.txt): Added `google-generativeai>=0.8.0`.
+  - [`.env.example`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/.env.example): Documented `GEMINI_API_KEY`.
+  - [`backend/app/tests/test_panel_cropper.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/tests/test_panel_cropper.py) (New): Unit tests for coordinate scaling, padding, boundary clamping, and real image verification for Tomato Ketchup (`1000093647.jpg`) and Oral Rehydration Salts (`1000093645.jpg`).
+- **Test Verification Outcome**:
+  - Executed inside container `nirikshak-backend-vit` via `pytest app/tests/test_panel_cropper.py -v`.
+  - **Status**: 100% Passed (6 passed in 10.44s). Both real-world packaging images generated high-resolution isolated crops for the Nutrition / Electrolyte Tables and Ingredient / Composition lists.
+- **Reason**: Automates the isolation of critical legal metrology and consumer health evidence into dedicated, high-resolution image artifacts for rapid auditing and visual verification.
 
+---
+
+### 17. Mobile App Visual Crop Cards & Full-Screen Studio Integration
+- **Status**: Completed & Verified
+- **Modified Files**:
+  - [`mobile/lib/core/api_client.dart`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/mobile/lib/core/api_client.dart): Added `recropScanPanels(String scanId)` calling backend `POST /api/v1/scans/{scanId}/recrop-panels`.
+  - [`mobile/lib/screens/details_screen.dart`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/mobile/lib/screens/details_screen.dart):
+    - Added `_buildVisualCropEvidenceSection` and `_buildCropThumbnailCard` displaying side-by-side Nutrition Table and Ingredients List cards.
+    - Integrated with `FullScreenImageViewer` modal for pinch-to-zoom full-screen visual inspection of isolated crops.
+    - Added on-demand "Re-crop" refresh trigger with live loading spinner and real-time state synchronization.
+    - Fixed `GlassCard` border parameters and ensured zero compilation errors across Dart analysis.
+  - PostgreSQL Database: Verified and added missing columns (`nutrition_table_image_url`, `ingredients_image_url`, and `crop_metadata`) to the `scans` table.
+- **Scope Note**: Web dashboard update was explicitly skipped per user direction (`dont make web dashborad`).
+
+---
+
+### 18. Upgrade to Modern `google-genai` SDK & Current Gemini Flash Models
+- **Status**: Completed & Verified
+- **Modified Files**:
+  - [`backend/requirements.txt`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/requirements.txt): Replaced deprecated `google-generativeai>=0.8.0` with modern `google-genai>=2.0.0`.
+  - [`backend/app/services/extraction/panel_cropper.py`](file:///c:/Users/Devraj/Desktop/Nirikshak-AI/nirikshak-ai/backend/app/services/extraction/panel_cropper.py):
+    - Migrated client initialization to `from google import genai` and `genai.Client(api_key=...)`.
+    - Updated detection call to `client.models.generate_content(...)` with `types.GenerateContentConfig(response_mime_type="application/json")`.
+    - Added automated model cascade prioritizing supported Flash models (`gemini-2.5-flash`, `gemini-3.8-flash`, `gemini-flash-latest`).
+    - Maintained full deterministic PaddleOCR anchor clustering fallback in case of rate-limiting or network issues.
+- **Verification**:
+  - Live tested Gemini Flash with real packaging image (`1000093647.jpg`): returned `google-genai:gemini-2.5-flash` with bounding boxes `[390, 100, 755, 660]` (Nutrition Table) and `[140, 70, 380, 620]` (Ingredients List).
+  - All test cases in `backend/app/tests/test_panel_cropper.py` passed with zero errors.
