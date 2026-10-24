@@ -87,6 +87,9 @@ services:
     image: nirikshak-vit-backend:latest
     container_name: nirikshak-backend-vit
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     env_file:
       - .env
     ports:
@@ -114,6 +117,9 @@ services:
     image: nirikshak-vit-worker:latest
     container_name: nirikshak-worker-vit
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     env_file:
       - .env
     volumes:

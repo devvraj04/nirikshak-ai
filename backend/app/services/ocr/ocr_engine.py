@@ -33,7 +33,7 @@ def get_paddle_ocr():
             from paddleocr import PaddleOCR
             logger.info("Initializing PaddleOCR engine...")
             _paddle_ocr_instance = PaddleOCR(
-                use_angle_cls=True,
+                use_angle_cls=False,
                 lang=settings.ocr_language or "en",
                 use_gpu=settings.ocr_use_gpu,
                 show_log=False,
@@ -121,32 +121,42 @@ class OCREngine:
 
     @staticmethod
     def _map_bbox_to_original(
-        bbox: List[List[float]], angle: int, orig_h: int, orig_w: int
+        bbox: List[List[float]],
+        angle: int,
+        orig_h: int,
+        orig_w: int,
+        scaled_h: int = 0,
+        scaled_w: int = 0,
+        scale: float = 1.0,
     ) -> List[List[float]]:
         """
-        Transform bounding box coordinates from rotated image space back to original (0°) coordinates.
+        Transform bounding box coordinates from rotated/scaled image space back to original (0°) coordinates.
         """
+        s_h = scaled_h or orig_h
+        s_w = scaled_w or orig_w
+        inv_scale = 1.0 / max(1e-6, scale)
+
         mapped = []
         for pt in bbox:
-            x, y = float(pt[0]), float(pt[1])
+            rx, ry = float(pt[0]), float(pt[1])
             if angle == 0:
-                ox, oy = x, y
+                sx, sy = rx, ry
             elif angle == 90:
-                # 90° CW rotation: rot_w = orig_h, rot_h = orig_w
-                # x_rot = orig_h - 1 - y_orig, y_rot = x_orig
-                ox = y
-                oy = orig_h - 1 - x
+                # 90° CW rotation: rot_w = scaled_h, rot_h = scaled_w
+                # rx = scaled_h - 1 - sy, ry = sx
+                sx = ry
+                sy = max(0.0, float(s_h - 1) - rx)
             elif angle == 180:
-                # 180° rotation: rot_w = orig_w, rot_h = orig_h
-                ox = orig_w - 1 - x
-                oy = orig_h - 1 - y
+                sx = max(0.0, float(s_w - 1) - rx)
+                sy = max(0.0, float(s_h - 1) - ry)
             elif angle == 270:
-                # 270° CW rotation: rot_w = orig_h, rot_h = orig_w
-                # x_rot = y_orig, y_rot = orig_w - 1 - x_orig
-                ox = orig_w - 1 - y
-                oy = x
+                sx = max(0.0, float(s_w - 1) - ry)
+                sy = rx
             else:
-                ox, oy = x, y
+                sx, sy = rx, ry
+
+            ox = sx * inv_scale
+            oy = sy * inv_scale
 
             ox = max(0.0, min(float(orig_w), ox))
             oy = max(0.0, min(float(orig_h), oy))
@@ -250,18 +260,27 @@ class OCREngine:
                 image_height=orig_h,
             )
 
-        # 0° and 90° CW rotations (cls=True automatically handles 180° and 270° inversions)
-        orientations: List[Tuple[int, np.ndarray]] = [
-            (0, img),
-            (90, cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)),
-        ]
+        # Scale image down for OCR if larger than 1024px (blistering fast inference on CPU)
+        max_ocr_dim = 1024
+        if max(orig_h, orig_w) > max_ocr_dim:
+            scale = max_ocr_dim / float(max(orig_h, orig_w))
+            new_w = max(1, int(round(orig_w * scale)))
+            new_h = max(1, int(round(orig_h * scale)))
+            scaled_img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        else:
+            scale = 1.0
+            scaled_img = img
+
+        scaled_h, scaled_w = scaled_img.shape[:2]
+
+        orientations: List[Tuple[int, np.ndarray]] = [(0, scaled_img)]
 
         collected_blocks: List[OCRBlock] = []
 
         for angle, rot_img in orientations:
             try:
-                # PaddleOCR accepts numpy ndarray directly
-                results = ocr.ocr(rot_img, cls=True)
+                # PaddleOCR accepts numpy ndarray directly (cls=False is 2x+ faster on CPU)
+                results = ocr.ocr(rot_img, cls=False)
                 if not results or not results[0]:
                     continue
 
@@ -279,7 +298,9 @@ class OCREngine:
                         continue
 
                     # Map coordinates back to original image coordinate space
-                    mapped_bbox = self._map_bbox_to_original(bbox, angle, orig_h, orig_w)
+                    mapped_bbox = self._map_bbox_to_original(
+                        bbox, angle, orig_h, orig_w, scaled_h, scaled_w, scale
+                    )
 
                     candidate_block = OCRBlock(
                         text=clean_str,

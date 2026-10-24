@@ -42,6 +42,10 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
     final croppedFile = await ImageCropper().cropImage(
       sourcePath: capturedFile.path,
+      maxWidth: 1280,
+      maxHeight: 1280,
+      compressQuality: 82,
+      compressFormat: ImageCompressFormat.jpg,
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Align & Crop $side Label',
