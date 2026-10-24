@@ -4,9 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class SplashScreen extends StatefulWidget {
-  final bool autoNavigate;
-
-  const SplashScreen({super.key, this.autoNavigate = true});
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -43,8 +41,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     );
 
     _progressController.forward().then((_) {
-      if (mounted && widget.autoNavigate) {
-        Future.delayed(const Duration(milliseconds: 1400), () {
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 400), () {
           if (mounted) {
             context.go('/login');
           }
@@ -59,19 +57,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _radarController.dispose();
     _pulseController.dispose();
     super.dispose();
-  }
-
-  void _replay() {
-    _progressController.reset();
-    _progressController.forward().then((_) {
-      if (mounted && widget.autoNavigate) {
-        Future.delayed(const Duration(milliseconds: 1400), () {
-          if (mounted) {
-            context.go('/login');
-          }
-        });
-      }
-    });
   }
 
   String _getDiagnosticStatus(double progress) {
@@ -455,60 +440,32 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                       },
                     ),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 32),
 
-                    // 5. Action Controls: Replay Sequence & Enter App
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        TextButton.icon(
-                          onPressed: _replay,
-                          icon: const Icon(Icons.replay_rounded, size: 14, color: Color(0xFF065F46)),
-                          label: Text(
-                            'Replay Sequence',
+                    // Statutory Verification Footer
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.security_rounded, size: 13, color: Color(0xFF475569)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'LMPC Act 2009 & Rule 18(2) Certified',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF065F46),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF64748B),
+                              letterSpacing: 0.3,
                             ),
                           ),
-                          style: TextButton.styleFrom(
-                            backgroundColor: const Color(0xFFECFDF5),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: const BorderSide(color: Color(0xFFA7F3D0), width: 1.2),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ElevatedButton(
-                          onPressed: () => context.go('/login'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F172A),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Enter App',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(Icons.arrow_forward_rounded, size: 14),
-                            ],
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
