@@ -451,21 +451,28 @@ class _ComplaintScreenState extends ConsumerState<ComplaintScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Row(
-              children: [
-                PulseIndicator(color: AppTheme.emerald500, size: 8),
-                SizedBox(width: 8),
-                Text(
-                  'STATUTORY EVIDENCE CAPTURE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: AppTheme.slate800,
+            const Expanded(
+              child: Row(
+                children: [
+                  PulseIndicator(color: AppTheme.emerald500, size: 8),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'STATUTORY EVIDENCE CAPTURE',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: AppTheme.slate800,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
               decoration: BoxDecoration(
@@ -745,8 +752,10 @@ class _ComplaintScreenState extends ConsumerState<ComplaintScreen> {
                 const SizedBox(height: 14),
 
                 // Action Buttons Row (Launch Camera styled identically to Home Page)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 6,
                   children: [
                     // Pick from Gallery text button
                     TextButton.icon(
@@ -757,7 +766,6 @@ class _ComplaintScreenState extends ConsumerState<ComplaintScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       ),
                     ),
-                    const SizedBox(width: 8),
 
                     // Launch Camera Button (same signature emerald style as home page)
                     ElevatedButton.icon(

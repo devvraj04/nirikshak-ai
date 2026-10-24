@@ -412,42 +412,45 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
       badgeText: 'ENFORCEMENT WING',
       subtitle: 'Legal Metrology Statutory Enforcement',
       trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               color: AppTheme.emerald50,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppTheme.emerald200),
             ),
             child: const Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.badge_rounded, size: 14, color: AppTheme.emerald700),
+                Icon(Icons.badge_rounded, size: 13, color: AppTheme.emerald700),
                 SizedBox(width: 4),
                 Text(
-                  'Officer Raj',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.emerald800),
+                  'Raj',
+                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppTheme.emerald800),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           GestureDetector(
             onTap: () => context.go('/login'),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppTheme.slate200),
               ),
               child: const Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.logout_rounded, size: 14, color: AppTheme.slate600),
-                  SizedBox(width: 4),
+                  Icon(Icons.logout_rounded, size: 13, color: AppTheme.slate600),
+                  SizedBox(width: 3),
                   Text(
                     'Exit',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.slate700),
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppTheme.slate700),
                   ),
                 ],
               ),
@@ -572,21 +575,28 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Row(
-              children: [
-                Icon(Icons.inbox_rounded, size: 16, color: AppTheme.slate700),
-                SizedBox(width: 6),
-                Text(
-                  'INCOMING REQUESTS',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.slate700,
-                    letterSpacing: 0.8,
+            const Expanded(
+              child: Row(
+                children: [
+                  Icon(Icons.inbox_rounded, size: 16, color: AppTheme.slate700),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'INCOMING REQUESTS',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.slate700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
             // Toggle Pending / Resolved
             Container(
               decoration: BoxDecoration(
@@ -970,10 +980,13 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
                   icon: const Icon(Icons.visibility_outlined, size: 13, color: AppTheme.slate800),
                   label: const Text(
                     'INSPECT',
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppTheme.slate800),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppTheme.slate800),
                   ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                     side: const BorderSide(color: AppTheme.slate300),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -981,7 +994,7 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
               ),
 
               if (!isResolved) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
 
                 // ACCEPT Button
                 Expanded(
@@ -994,22 +1007,25 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
                         _handleDecision(id, 'ACCEPT');
                       }
                     },
-                    icon: const Icon(Icons.check_circle_rounded, size: 14, color: Colors.white),
+                    icon: const Icon(Icons.check_circle_rounded, size: 13, color: Colors.white),
                     label: const Text(
                       'ACCEPT',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
+                      minimumSize: Size.zero,
                       backgroundColor: AppTheme.emerald600,
                       foregroundColor: Colors.white,
                       elevation: 1,
-                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
 
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
 
                 // REJECT Button
                 Expanded(
@@ -1022,16 +1038,19 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
                         _handleDecision(id, 'REJECT');
                       }
                     },
-                    icon: const Icon(Icons.cancel_rounded, size: 14, color: Colors.white),
+                    icon: const Icon(Icons.cancel_rounded, size: 13, color: Colors.white),
                     label: const Text(
                       'REJECT',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
+                      minimumSize: Size.zero,
                       backgroundColor: AppTheme.dangerRed,
                       foregroundColor: Colors.white,
                       elevation: 1,
-                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
@@ -1069,21 +1088,28 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
               const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.qr_code_scanner_rounded, size: 16, color: AppTheme.slate700),
-                      SizedBox(width: 6),
-                      Text(
-                        'ON-SITE ENFORCEMENT SCANNER',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.slate700,
-                          letterSpacing: 0.8,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.qr_code_scanner_rounded, size: 16, color: AppTheme.slate700),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'ON-SITE ENFORCEMENT SCANNER',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.slate700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  SizedBox(width: 8),
                   Text(
                     'Multi-Face Inspection',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.slate500),
@@ -1261,10 +1287,15 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Processing $_bulkCompleted of $_bulkTotal Packages...',
-                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppTheme.emerald800),
+                          Expanded(
+                            child: Text(
+                              'Processing $_bulkCompleted of $_bulkTotal Packages...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5, color: AppTheme.emerald800),
+                            ),
                           ),
+                          const SizedBox(width: 8),
                           const SizedBox(
                             width: 16,
                             height: 16,
@@ -1451,7 +1482,10 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
           const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.slate500),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: AppTheme.slate500),
           ),
         ],
       ),
@@ -1636,6 +1670,8 @@ class _OfficerDashboardScreenState extends ConsumerState<OfficerDashboardScreen>
           const SizedBox(height: 2),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 10,
               fontWeight: isActive ? FontWeight.bold : FontWeight.w500,

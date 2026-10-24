@@ -84,37 +84,46 @@ class _PriceHistoryChartState extends State<PriceHistoryChart> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    isOvercharge ? Icons.warning_rounded : Icons.trending_up_rounded,
-                    size: 16,
-                    color: isOvercharge ? AppTheme.dangerRed : AppTheme.emerald600,
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        selectedTime,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.slate500,
-                        ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(
+                      isOvercharge ? Icons.warning_rounded : Icons.trending_up_rounded,
+                      size: 16,
+                      color: isOvercharge ? AppTheme.dangerRed : AppTheme.emerald600,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            selectedTime,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.slate500,
+                            ),
+                          ),
+                          Text(
+                            selectedMarket,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.slate800,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        selectedMarket,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.slate800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -171,23 +180,24 @@ class _PriceHistoryChartState extends State<PriceHistoryChart> {
 
         const SizedBox(height: 8),
 
-        // Legend Row
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        // Legend Wrap
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 14,
+          runSpacing: 4,
           children: [
             _buildLegendItem(
               color: AppTheme.emerald600,
               label: 'Marketplace Price (Twice-Daily)',
               isDashed: false,
             ),
-            if (widget.declaredMrp != null && widget.declaredMrp! > 0) ...[
-              const SizedBox(width: 14),
+            if (widget.declaredMrp != null && widget.declaredMrp! > 0)
               _buildLegendItem(
                 color: const Color(0xFFE11D48),
                 label: 'Pack MRP (₹${widget.declaredMrp!.toStringAsFixed(2)})',
                 isDashed: true,
               ),
-            ],
           ],
         ),
       ],

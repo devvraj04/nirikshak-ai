@@ -155,7 +155,14 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
           children: [
             const Icon(Icons.camera_alt_outlined, color: AppTheme.emerald600),
             const SizedBox(width: 8),
-            Text('Scan $side Side?', style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.bold, fontSize: 16)),
+            Expanded(
+              child: Text(
+                'Scan $side Side?',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
           ],
         ),
         content: Text(
@@ -394,37 +401,41 @@ class _ScanScreenState extends ConsumerState<ScanScreen> {
 
   Widget _buildStartPrompt() {
     return GlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       borderRadius: 20,
       child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.emerald100,
-                border: Border.all(color: AppTheme.emerald400, width: 2),
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.emerald100,
+                  border: Border.all(color: AppTheme.emerald400, width: 2),
+                ),
+                child: const Icon(Icons.center_focus_strong_rounded, size: 40, color: AppTheme.emerald600),
               ),
-              child: const Icon(Icons.center_focus_strong_rounded, size: 44, color: AppTheme.emerald600),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'Multi-Angle Scanner Ready',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.slate900),
-            ),
-            const SizedBox(height: 6),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Photograph the front and back of the product package (required), then optionally capture sides to ensure all declarations are captured.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.slate500, fontSize: 12),
+              const SizedBox(height: 16),
+              const Text(
+                'Multi-Angle Scanner Ready',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppTheme.slate900),
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Photograph the front and back of the product package (required), then optionally capture sides to ensure all declarations are captured.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppTheme.slate500, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

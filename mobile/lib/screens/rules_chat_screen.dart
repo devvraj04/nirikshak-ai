@@ -245,12 +245,13 @@ class _RulesChatScreenState extends State<RulesChatScreen> with SingleTickerProv
         showBackButton: true,
         onBack: () => Navigator.of(context).maybePop(),
         trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: AppTheme.slate900,
             borderRadius: BorderRadius.circular(20),
           ),
           child: const Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.verified_outlined, size: 12, color: AppTheme.emerald400),
               SizedBox(width: 4),
@@ -298,10 +299,11 @@ class _RulesChatScreenState extends State<RulesChatScreen> with SingleTickerProv
             iconMargin: EdgeInsets.zero,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.gavel_rounded, size: 15),
                 SizedBox(width: 6),
-                Text('All Rules'),
+                Flexible(child: Text('All Rules', maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
@@ -309,10 +311,11 @@ class _RulesChatScreenState extends State<RulesChatScreen> with SingleTickerProv
             iconMargin: EdgeInsets.zero,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.smart_toy_outlined, size: 15),
                 SizedBox(width: 6),
-                Text('RAG Legal AI'),
+                Flexible(child: Text('RAG Legal AI', maxLines: 1, overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),

@@ -112,13 +112,17 @@ class NirikshakAppBar extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            'निरीक्षक AI',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.slate900,
-                              letterSpacing: -0.3,
+                          const Flexible(
+                            child: Text(
+                              'निरीक्षक AI',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.slate900,
+                                letterSpacing: -0.3,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 6),

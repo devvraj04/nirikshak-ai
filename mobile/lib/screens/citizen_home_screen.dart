@@ -101,7 +101,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                       color: AppTheme.emerald500,
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -258,24 +258,35 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  PulseIndicator(color: AppTheme.emerald500, size: 8),
-                  SizedBox(width: 6),
-                  Text(
-                    'VISION OCR & LABEL SCANNER',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.slate700,
-                      letterSpacing: 0.8,
+              Expanded(
+                child: Row(
+                  children: [
+                    PulseIndicator(color: AppTheme.emerald500, size: 8),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'VISION OCR & LABEL SCANNER',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.slate700,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              Text(
-                'Rule 6 Mandatory Declarations',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.slate500),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Rule 6 Mandate',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w500, color: AppTheme.slate500),
+                ),
               ),
             ],
           ),
@@ -394,8 +405,10 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                       const SizedBox(height: 14),
 
                       // Action Buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
                           ElevatedButton.icon(
                             onPressed: () => context.push('/scan'),
@@ -407,7 +420,6 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
-                          const SizedBox(width: 8),
                           ElevatedButton.icon(
                             onPressed: _pickAndUploadGalleryImage,
                             icon: const Icon(Icons.file_upload_outlined, size: 14, color: Colors.white),
@@ -449,16 +461,23 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.checklist_rtl_rounded, color: AppTheme.emerald600, size: 16),
-                  SizedBox(width: 6),
-                  Text(
-                    'Legal Metrology (PC) Rules, 2011',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.slate900),
-                  ),
-                ],
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.checklist_rtl_rounded, color: AppTheme.emerald600, size: 16),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Legal Metrology (PC) Rules, 2011',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -597,18 +616,24 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                   child: const Icon(Icons.inventory_2_outlined, color: AppTheme.infoBlue, size: 18),
                 ),
                 const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$scanCount',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
-                    ),
-                    const Text(
-                      'SKUs Verified',
-                      style: TextStyle(fontSize: 10, color: AppTheme.slate500, fontWeight: FontWeight.w500),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$scanCount',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                      ),
+                      const Text(
+                        'SKUs Verified',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10, color: AppTheme.slate500, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -634,18 +659,24 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                   child: const Icon(Icons.warning_amber_rounded, color: AppTheme.warningAmber, size: 18),
                 ),
                 const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$flagCount Flags',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
-                    ),
-                    const Text(
-                      'Pending Review',
-                      style: TextStyle(fontSize: 10, color: AppTheme.slate500, fontWeight: FontWeight.w500),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$flagCount Flags',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+                      ),
+                      const Text(
+                        'Pending Review',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10, color: AppTheme.slate500, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -725,7 +756,7 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(scan['product_name'] ?? 'Packaged Item', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.slate900), overflow: TextOverflow.ellipsis),
-                          Text(scan['manufacturer_name'] ?? 'LMPC Audited', style: const TextStyle(fontSize: 10, color: AppTheme.slate500)),
+                          Text(scan['manufacturer_name'] ?? 'LMPC Audited', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: AppTheme.slate500)),
                         ],
                       ),
                     ),
@@ -853,7 +884,15 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Consumer Overcharging Reports', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900)),
+            const Expanded(
+              child: Text(
+                'Consumer Overcharging Reports',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
+              ),
+            ),
+            const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: () => context.push('/complaint'),
               icon: const Icon(Icons.add, size: 14),
@@ -1017,6 +1056,8 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
           const SizedBox(height: 2),
           Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 10,
               fontWeight: isActive ? FontWeight.bold : FontWeight.w500,

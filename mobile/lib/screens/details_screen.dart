@@ -563,45 +563,54 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isSurrogate ? Icons.shield_rounded : Icons.verified_user_rounded,
-                      color: primaryColor,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'SURROGATE AD & DARK PATTERNS',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                          color: AppTheme.slate500,
-                        ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
                       ),
-                      Text(
-                        'CCPA 2022 & FSSAI 2018 Audit',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.slate900,
-                        ),
+                      child: Icon(
+                        isSurrogate ? Icons.shield_rounded : Icons.verified_user_rounded,
+                        color: primaryColor,
+                        size: 20,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'SURROGATE AD & DARK PATTERNS',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                              color: AppTheme.slate500,
+                            ),
+                          ),
+                          Text(
+                            'CCPA 2022 & FSSAI 2018 Audit',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.slate900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -860,45 +869,54 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: AppTheme.emerald600.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.crop_free_rounded,
-                      color: AppTheme.emerald600,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ISOLATED VISUAL CROPS',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                          color: AppTheme.slate500,
-                        ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: AppTheme.emerald600.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
                       ),
-                      Text(
-                        'Nutrition & Formulation Panels',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: AppTheme.slate900,
-                        ),
+                      child: const Icon(
+                        Icons.crop_free_rounded,
+                        color: AppTheme.emerald600,
+                        size: 18,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ISOLATED VISUAL CROPS',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                              color: AppTheme.slate500,
+                            ),
+                          ),
+                          Text(
+                            'Nutrition & Formulation Panels',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.slate900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               if (_recroppingPanels)
                 const SizedBox(
                   width: 18,
@@ -1153,15 +1171,20 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'SCANNED EVIDENCE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-                color: AppTheme.slate600,
+            const Expanded(
+              child: Text(
+                'SCANNED EVIDENCE',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.1,
+                  color: AppTheme.slate600,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
@@ -1487,28 +1510,35 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.emerald600.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.emerald600.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.document_scanner_rounded, size: 16, color: AppTheme.emerald600),
                     ),
-                    child: const Icon(Icons.document_scanner_rounded, size: 16, color: AppTheme.emerald600),
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'PACKAGING OCR STUDIO',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.1,
-                      color: AppTheme.slate800,
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'PACKAGING OCR STUDIO',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.1,
+                          color: AppTheme.slate800,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -1906,21 +1936,28 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(Icons.text_snippet_rounded, size: 14, color: AppTheme.slate600),
-                    const SizedBox(width: 6),
-                    Text(
-                      'DETECTED OCR TEXT ($lineCount LINES)',
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.slate700,
-                        letterSpacing: 0.5,
+                Expanded(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.text_snippet_rounded, size: 14, color: AppTheme.slate600),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'DETECTED OCR TEXT ($lineCount LINES)',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.slate700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 6),
                 Row(
                   children: [
                     // Mode Toggle (Cards / Raw)
@@ -3390,16 +3427,20 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           children: [
             const Icon(Icons.article_rounded, size: 16, color: Color(0xFF475569)),
             const SizedBox(width: 6),
-            const Text(
-              'FULL PACKAGE CONTENT EXTRACTION',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.0,
-                color: Color(0xFF475569),
+            const Expanded(
+              child: Text(
+                'FULL PACKAGE CONTENT EXTRACTION',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.0,
+                  color: Color(0xFF475569),
+                ),
               ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
               decoration: BoxDecoration(
@@ -3798,9 +3839,11 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                       children: [
                         Icon(Icons.swipe_left_rounded, size: 14, color: Color(0xFF94A3B8)),
                         SizedBox(width: 4),
-                        Text(
-                          'Swipe horizontally to review all analytical parameters across columns',
-                          style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                        Expanded(
+                          child: Text(
+                            'Swipe horizontally to review all analytical parameters across columns',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          ),
                         ),
                       ],
                     ),
@@ -4092,28 +4135,29 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: [
-                                Text(
-                                  name,
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: isBanned ? const Color(0xFFB91C1C) : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                const Spacer(),
-                                if (ingMap['origin'] != null)
-                                  Text(
-                                    'Origin: ${ingMap['origin']}',
-                                    style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
-                                  ),
-                              ],
+                            Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: isBanned ? const Color(0xFFB91C1C) : const Color(0xFF0F172A),
+                              ),
                             ),
+                            if (ingMap['origin'] != null && ingMap['origin'].toString().isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                'Origin: ${ingMap['origin']}',
+                                style: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                             if (meaning.isNotEmpty) ...[
                               const SizedBox(height: 4),
-                              RichText(
-                                text: TextSpan(
+                              Text.rich(
+                                TextSpan(
                                   style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155), height: 1.35),
                                   children: [
                                     const TextSpan(text: '🔬 Meaning: ', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
@@ -4124,8 +4168,8 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
                             ],
                             if (purpose.isNotEmpty) ...[
                               const SizedBox(height: 3),
-                              RichText(
-                                text: TextSpan(
+                              Text.rich(
+                                TextSpan(
                                   style: const TextStyle(fontSize: 11.5, color: Color(0xFF334155), height: 1.35),
                                   children: [
                                     const TextSpan(text: '🎯 Why Used: ', style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
@@ -4896,22 +4940,28 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.table_chart_rounded, size: 16, color: AppTheme.slate700),
-                SizedBox(width: 6),
-                Text(
-                  'STRUCTURED PACKAGING DECLARATIONS',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                    color: AppTheme.slate700,
+            const Expanded(
+              child: Row(
+                children: [
+                  Icon(Icons.table_chart_rounded, size: 16, color: AppTheme.slate700),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'STRUCTURED PACKAGING DECLARATIONS',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.0,
+                        color: AppTheme.slate700,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
               decoration: BoxDecoration(
@@ -5504,15 +5554,20 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'TWICE-DAILY PRICE SURVEILLANCE TREND',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.9,
-                  color: AppTheme.slate700,
+              Expanded(
+                child: Text(
+                  'TWICE-DAILY PRICE SURVEILLANCE TREND',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.9,
+                    color: AppTheme.slate700,
+                  ),
                 ),
               ),
+              SizedBox(width: 8),
               Text(
                 '09:00 AM / 06:00 PM Log',
                 style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w600, color: AppTheme.slate400),
@@ -5541,15 +5596,20 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'PRODUCT VIOLATION HISTORY',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.9,
-                  color: AppTheme.slate700,
+              const Expanded(
+                child: Text(
+                  'PRODUCT VIOLATION HISTORY',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.9,
+                    color: AppTheme.slate700,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
@@ -5724,22 +5784,27 @@ class _DetailsScreenState extends ConsumerState<DetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isRepeat ? const Color(0xFFDC2626) : const Color(0xFFD97706),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  isRepeat ? 'REPEAT OFFENCE (ESCALATED)' : 'FIRST OFFENCE',
-                  style: const TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
+              Flexible(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: isRepeat ? const Color(0xFFDC2626) : const Color(0xFFD97706),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isRepeat ? 'REPEAT OFFENCE (ESCALATED)' : 'FIRST OFFENCE',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(width: 6),
               Text(
                 date,
                 style: const TextStyle(fontSize: 9, color: AppTheme.slate500, fontWeight: FontWeight.w600),
