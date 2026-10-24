@@ -167,6 +167,20 @@ class ApiClient {
     return response.data;
   }
 
+  Future<Map<String, dynamic>> fetchPersonalizedReport(String userId, {int days = 7}) async {
+    final response = await dio.get('/users/$userId/personalized-report', queryParameters: {'days': days});
+    return Map<String, dynamic>.from(response.data);
+  }
+
+  Future<List<int>> downloadPersonalizedReportPdf(String userId, {int days = 7}) async {
+    final response = await dio.get(
+      '/users/$userId/personalized-report/pdf',
+      queryParameters: {'days': days},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return List<int>.from(response.data);
+  }
+
   Future<List<dynamic>> fetchComplaints() async {
     final response = await dio.get('/complaints');
     return response.data;

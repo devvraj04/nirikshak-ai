@@ -69,9 +69,35 @@ def _try_add_image(elements, image_path: str, width=2*inch, height=1.5*inch, cap
 @router.get("/{scan_id}/download")
 async def download_report(
     scan_id: uuid.UUID,
+    format: str = "pymupdf",
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate and download a detailed PDF compliance report for a scan."""
+    """Generate and download a detailed PyMuPDF compliance & evidence report signed by Examiner Dev."""
+    if format == "concise":
+        try:
+            from app.services.reports import generate_concise_pdf_report
+            pdf_bytes = await generate_concise_pdf_report(scan_id=scan_id, db=db, save_to_disk=True)
+            return StreamingResponse(
+                io.BytesIO(pdf_bytes),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f'inline; filename="nirikshak_concise_{scan_id}.pdf"'}
+            )
+        except Exception:
+            pass
+
+    # Primary: PyMuPDF evidence report with photos & Dev's digital signature
+    try:
+        from app.services.reports import generate_scan_pdf_report
+        pdf_bytes = await generate_scan_pdf_report(scan_id=scan_id, db=db, save_to_disk=True)
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'inline; filename="nirikshak_audit_{scan_id}.pdf"'}
+        )
+    except Exception:
+        pass
+
+    # Fallback to ReportLab template if PyMuPDF not available
     stmt = select(Scan, Declaration).options(
         selectinload(Scan.violations).selectinload(Violation.rule),
         selectinload(Scan.violations).selectinload(Violation.evidence_items),
@@ -340,4 +366,23 @@ async def download_complaint_report(
         buffer,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=complaint_report_{complaint_id}.pdf"}
+    )
+
+
+@router.get("/personalized/{user_id}/download")
+@router.get("/users/{user_id}/personalized-pdf")
+async def download_personalized_pdf_via_reports(
+    user_id: uuid.UUID,
+    days: int = 7,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate and stream the personalized weekly PDF report via reports router."""
+    from app.api.routes.users import get_personalized_report
+    from app.services.reports import generate_personalized_weekly_pdf_report
+    report_data = await get_personalized_report(user_id=user_id, days=days, db=db)
+    pdf_bytes = await generate_personalized_weekly_pdf_report(user_id=user_id, report_data=report_data, save_to_disk=True)
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="nirikshak_personalized_weekly_{user_id}.pdf"'},
     )

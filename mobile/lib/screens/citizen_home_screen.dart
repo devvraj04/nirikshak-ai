@@ -10,6 +10,7 @@ import '../widgets/glass_card.dart';
 import '../widgets/pulse_indicator.dart';
 import '../widgets/nirikshak_app_bar.dart';
 import 'details_screen.dart';
+import '../widgets/personalized_report_view.dart';
 
 class CitizenHomeScreen extends ConsumerStatefulWidget {
   const CitizenHomeScreen({super.key});
@@ -119,8 +120,10 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
                             if (_currentNavIndex == 1) ...[
                               _buildAuditsSection(),
                             ] else if (_currentNavIndex == 3) ...[
-                              _buildReportsSection(),
+                              _buildReportsSection(auth),
                             ] else ...[
+                              _buildPersonalizedReportPromoCard(),
+                              const SizedBox(height: 14),
                               _buildLiveScannerCard(),
                               const SizedBox(height: 14),
                               _buildChecklistCard(),
@@ -877,88 +880,91 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
     );
   }
 
-  Widget _buildReportsSection() {
+  Widget _buildPersonalizedReportPromoCard() {
+    return GlassCard(
+      padding: const EdgeInsets.all(14),
+      borderRadius: 18,
+      backgroundColor: Colors.white.withValues(alpha: 0.9),
+      borderColor: AppTheme.emerald500.withValues(alpha: 0.3),
+      onTap: () {
+        setState(() {
+          _currentNavIndex = 3;
+        });
+      },
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.emerald500, Color(0xFF0D9488)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppTheme.emerald500.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.auto_graph_rounded, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Personalised Report',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppTheme.slate900,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: AppTheme.emerald100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        '1 WEEK',
+                        style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w800, color: AppTheme.emerald800),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_scans.length} scanned items • Nutritional breakdown & statutory audit',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 10.5, color: AppTheme.slate600),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_ios_rounded, size: 13, color: AppTheme.slate500),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportsSection(AuthState auth) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Expanded(
-              child: Text(
-                'Consumer Overcharging Reports',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900),
-              ),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
-              onPressed: () => context.push('/complaint'),
-              icon: const Icon(Icons.add, size: 14),
-              label: const Text('File Report', style: TextStyle(fontSize: 11)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.warningAmber,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              ),
-            ),
-          ],
+        PersonalizedReportView(
+          userId: auth.userId.isNotEmpty ? auth.userId : '00000000-0000-0000-0000-000000000001',
+          initialScans: _scans,
         ),
-        const SizedBox(height: 12),
-        if (_complaints.isEmpty)
-          const GlassCard(
-            padding: EdgeInsets.all(30),
-            child: Center(
-              child: Text('No complaints filed yet.', style: TextStyle(color: AppTheme.slate500)),
-            ),
-          )
-        else
-          ..._complaints.map((item) {
-            final status = item['status'] ?? 'SUBMITTED';
-            final isResolved = status != 'SUBMITTED';
-
-            return GlassCard(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(14),
-              borderRadius: 16,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(item as Map))),
-                );
-              },
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(isResolved ? Icons.check_circle : Icons.pending_actions, color: isResolved ? AppTheme.successGreen : AppTheme.warningOrange, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(item['shopkeeper_name'] ?? 'Retail Store', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900)),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: (isResolved ? AppTheme.successGreen : AppTheme.warningOrange).withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(status, style: TextStyle(color: isResolved ? AppTheme.successGreen : AppTheme.warningOrange, fontWeight: FontWeight.bold, fontSize: 9)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Text('Paid: ₹${item['paid_price']}', style: const TextStyle(color: AppTheme.dangerRed, fontWeight: FontWeight.bold, fontSize: 12)),
-                      const SizedBox(width: 10),
-                      Text('MRP: ₹${item['printed_mrp']}', style: const TextStyle(color: AppTheme.slate500, fontSize: 12, decoration: TextDecoration.lineThrough)),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          }),
       ],
     );
   }
