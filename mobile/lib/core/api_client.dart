@@ -8,8 +8,8 @@ class ApiClient {
 
   late final Dio dio;
 
-  // Points to local Docker backend over USB (adb reverse tcp:8080 tcp:8080)
-  static const String _overrideUrl = 'http://127.0.0.1:8080';
+  // Points to AWS Lightsail production backend
+  static const String _overrideUrl = 'http://3.7.153.193:8080';
 
   // Change to your laptop's IP only if testing wirelessly over a Mobile Hotspot (not campus Wi-Fi)
   static const String _customLanIp = ''; 
