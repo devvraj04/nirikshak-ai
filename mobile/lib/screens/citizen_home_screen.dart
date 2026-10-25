@@ -11,6 +11,9 @@ import '../widgets/pulse_indicator.dart';
 import '../widgets/nirikshak_app_bar.dart';
 import 'details_screen.dart';
 import '../widgets/personalized_report_view.dart';
+import '../widgets/product_catalog_view.dart';
+import '../services/system_overlay_service.dart';
+import '../widgets/floating_overlay_bubble.dart';
 
 class CitizenHomeScreen extends ConsumerStatefulWidget {
   const CitizenHomeScreen({super.key});
@@ -26,11 +29,59 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
   int _rewardPoints = 0;
   bool _isLoading = true;
   int _currentNavIndex = 0; // 0: Home, 1: Audits, 2: Center Scan, 3: Reports, 4: Rules
+  int _auditTabSubIndex = 0; // 0: Current Audits, 1: Product Catalog
+  bool _isSystemOverlayActive = false;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _checkOverlayStatus();
+  }
+
+  Future<void> _checkOverlayStatus() async {
+    final running = await SystemOverlayService.isOverlayRunning();
+    if (mounted) {
+      setState(() => _isSystemOverlayActive = running);
+    }
+  }
+
+  Future<void> _toggleSystemOverlay(bool value) async {
+    if (value) {
+      final granted = await SystemOverlayService.isPermissionGranted();
+      if (!granted) {
+        final requested = await SystemOverlayService.requestPermission();
+        if (!requested) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please grant "Display over other apps" permission in Settings to show Nirikshak floating icon.'),
+              ),
+            );
+          }
+          return;
+        }
+      }
+      // Request screen capture permission for Circle-to-Search
+      await SystemOverlayService.requestScreenCapturePermission();
+      final started = await SystemOverlayService.startOverlay();
+      if (mounted) {
+        setState(() => _isSystemOverlayActive = started);
+        if (started) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Nirikshak Floating Assistant enabled across whole device! Look for the floating Nirikshak logo.'),
+              backgroundColor: AppTheme.emerald600,
+            ),
+          );
+        }
+      }
+    } else {
+      final stopped = await SystemOverlayService.stopOverlay();
+      if (mounted) {
+        setState(() => _isSystemOverlayActive = !stopped);
+      }
+    }
   }
 
   Future<void> _loadData() async {
@@ -89,64 +140,68 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
 
-    return Scaffold(
-      body: AuraBackground(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppTheme.emerald500))
-            : Stack(
-                children: [
-                  // Scrollable Content
-                  Positioned.fill(
-                    child: RefreshIndicator(
-                      onRefresh: _loadData,
-                      color: AppTheme.emerald500,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // Top Header / Status Bar
-                            _buildHeader(auth),
+    return FloatingOverlayBubble(
+      child: Scaffold(
+        body: AuraBackground(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: AppTheme.emerald500))
+              : Stack(
+                  children: [
+                    // Scrollable Content
+                    Positioned.fill(
+                      child: RefreshIndicator(
+                        onRefresh: _loadData,
+                        color: AppTheme.emerald500,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Top Header / Status Bar
+                              _buildHeader(auth),
 
-                            const SizedBox(height: 12),
+                              const SizedBox(height: 12),
 
-                            // Welcome & Reward Pill
-                            _buildWelcomePill(auth),
+                              // Welcome & Reward Pill
+                              _buildWelcomePill(auth),
 
-                            const SizedBox(height: 12),
+                              const SizedBox(height: 12),
 
-                            // Main switchable content based on nav selection
-                            if (_currentNavIndex == 1) ...[
-                              _buildAuditsSection(),
-                            ] else if (_currentNavIndex == 3) ...[
-                              _buildReportsSection(auth),
-                            ] else ...[
-                              _buildPersonalizedReportPromoCard(),
-                              const SizedBox(height: 14),
-                              _buildLiveScannerCard(),
-                              const SizedBox(height: 14),
-                              _buildChecklistCard(),
-                              const SizedBox(height: 14),
-                              _buildAnalyticsGrid(),
-                              const SizedBox(height: 14),
-                              _buildRecentActivitySection(),
+                              // Main switchable content based on nav selection
+                              if (_currentNavIndex == 1) ...[
+                                _buildAuditsSection(),
+                              ] else if (_currentNavIndex == 3) ...[
+                                _buildReportsSection(auth),
+                              ] else ...[
+                                _buildPersonalizedReportPromoCard(),
+                                const SizedBox(height: 14),
+                                _buildSystemOverlayCard(),
+                                const SizedBox(height: 14),
+                                _buildLiveScannerCard(),
+                                const SizedBox(height: 14),
+                                _buildChecklistCard(),
+                                const SizedBox(height: 14),
+                                _buildAnalyticsGrid(),
+                                const SizedBox(height: 14),
+                                _buildRecentActivitySection(),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-                  // Bottom Floating App Bar Navigation
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
-                    child: _buildFloatingBottomNav(),
-                  ),
-                ],
-              ),
+                    // Bottom Floating App Bar Navigation
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 16,
+                      child: _buildFloatingBottomNav(),
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -245,6 +300,151 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSystemOverlayCard() {
+    return GlassCard(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              // Nirikshak Logo badge with glowing emerald border
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.slate900,
+                  border: Border.all(
+                    color: _isSystemOverlayActive ? AppTheme.emerald500 : AppTheme.slate300,
+                    width: 2.5,
+                  ),
+                  boxShadow: _isSystemOverlayActive
+                      ? [
+                          BoxShadow(
+                            color: AppTheme.emerald500.withValues(alpha: 0.35),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/nirikshak_logo.jpeg',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.travel_explore_rounded,
+                      color: AppTheme.emerald400,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Flexible(
+                          child: Text(
+                            'SYSTEM-WIDE EXTENSION',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.slate800,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _isSystemOverlayActive ? AppTheme.emerald100 : AppTheme.slate200,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              PulseIndicator(
+                                color: _isSystemOverlayActive ? AppTheme.emerald600 : AppTheme.slate500,
+                                size: 6,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isSystemOverlayActive ? 'ACTIVE' : 'OFF',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: _isSystemOverlayActive ? AppTheme.emerald700 : AppTheme.slate600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Floating Nirikshak assistant works over Blinkit, Zepto, Amazon & Swiggy Instamart.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.slate600,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Switch(
+                value: _isSystemOverlayActive,
+                activeThumbColor: AppTheme.emerald500,
+                activeTrackColor: AppTheme.emerald100,
+                inactiveThumbColor: AppTheme.slate400,
+                inactiveTrackColor: AppTheme.slate200,
+                onChanged: _toggleSystemOverlay,
+              ),
+            ],
+          ),
+          if (_isSystemOverlayActive) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.emerald50.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.emerald200.withValues(alpha: 0.6)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.touch_app_rounded, size: 14, color: AppTheme.emerald700),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Tap the floating Nirikshak logo on any shopping app for instant Circle-to-Search!',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.emerald800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -794,88 +994,211 @@ class _CitizenHomeScreenState extends ConsumerState<CitizenHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Product Audits & Scans', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.slate900)),
-            Text('${_scans.length} Total', style: const TextStyle(fontSize: 12, color: AppTheme.slate500)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (_scans.isEmpty)
-          const GlassCard(
-            padding: EdgeInsets.all(30),
-            child: Center(
-              child: Text('No audits yet. Scan a package to get started.', style: TextStyle(color: AppTheme.slate500)),
-            ),
-          )
-        else
-          ...brandGroups.entries.map((entry) {
-            final brand = entry.key;
-            final scans = entry.value;
-            final passCount = scans.where((s) => s['status'] == 'PASS').length;
-            final failCount = scans.where((s) => s['status'] == 'FAIL').length;
-
-            return GlassCard(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              borderRadius: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.business, size: 16, color: AppTheme.slate800),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          brand,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(color: AppTheme.emerald100, borderRadius: BorderRadius.circular(4)),
-                        child: Text('$passCount✓', style: const TextStyle(color: AppTheme.emerald800, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                        child: Text('$failCount✗', style: const TextStyle(color: AppTheme.dangerRed, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...scans.map((scan) {
-                    final isPass = scan['status'] == 'PASS';
-                    return InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(scan as Map))),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          children: [
-                            Icon(isPass ? Icons.check_circle_outline : Icons.highlight_off, color: isPass ? AppTheme.successGreen : AppTheme.dangerRed, size: 16),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(scan['product_name'] ?? 'Product', style: const TextStyle(fontSize: 12, color: AppTheme.slate900), overflow: TextOverflow.ellipsis),
+        // Top Segmented Switcher: Current Audits vs Product Catalog
+        Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppTheme.slate200.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _auditTabSubIndex = 0),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _auditTabSubIndex == 0 ? Colors.white : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: _auditTabSubIndex == 0
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              )
+                            ]
+                          : null,
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.history_rounded,
+                            size: 15,
+                            color: _auditTabSubIndex == 0 ? AppTheme.slate900 : AppTheme.slate500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Current Audits (${_scans.length})',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: _auditTabSubIndex == 0 ? FontWeight.bold : FontWeight.w500,
+                              color: _auditTabSubIndex == 0 ? AppTheme.slate900 : AppTheme.slate600,
                             ),
-                            Text(scan['status'] ?? '', style: TextStyle(color: isPass ? AppTheme.successGreen : AppTheme.dangerRed, fontWeight: FontWeight.bold, fontSize: 10)),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    );
-                  }),
-                ],
+                    ),
+                  ),
+                ),
               ),
-            );
-          }),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _auditTabSubIndex = 1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _auditTabSubIndex == 1 ? Colors.white : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: _auditTabSubIndex == 1
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              )
+                            ]
+                          : null,
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.menu_book_rounded,
+                            size: 15,
+                            color: _auditTabSubIndex == 1 ? AppTheme.emerald700 : AppTheme.slate500,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Product Catalog',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: _auditTabSubIndex == 1 ? FontWeight.bold : FontWeight.w500,
+                              color: _auditTabSubIndex == 1 ? AppTheme.emerald800 : AppTheme.slate600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Sub-page content
+        if (_auditTabSubIndex == 1)
+          ProductCatalogView(
+            onSwitchToCurrentAudits: () => setState(() => _auditTabSubIndex = 0),
+          )
+        else ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('My Packaging Audits & Scans', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.slate900)),
+              Text('${_scans.length} Recorded', style: const TextStyle(fontSize: 12, color: AppTheme.slate500)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_scans.isEmpty)
+            GlassCard(
+              padding: const EdgeInsets.all(30),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.qr_code_scanner_rounded, size: 36, color: AppTheme.slate400),
+                    const SizedBox(height: 8),
+                    const Text('No audits yet. Scan a package to get started.', style: TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () => setState(() => _auditTabSubIndex = 1),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.slate900,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Browse Product Catalog', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...brandGroups.entries.map((entry) {
+              final brand = entry.key;
+              final scans = entry.value;
+              final passCount = scans.where((s) => s['status'] == 'PASS').length;
+              final failCount = scans.where((s) => s['status'] == 'FAIL').length;
+
+              return GlassCard(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                borderRadius: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.business, size: 16, color: AppTheme.slate800),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            brand,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.slate900),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(color: AppTheme.emerald100, borderRadius: BorderRadius.circular(4)),
+                          child: Text('$passCount✓', style: const TextStyle(color: AppTheme.emerald800, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
+                          child: Text('$failCount✗', style: const TextStyle(color: AppTheme.dangerRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ...scans.map((scan) {
+                      final isPass = scan['status'] == 'PASS';
+                      return InkWell(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => DetailsScreen(item: Map<String, dynamic>.from(scan as Map))),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Row(
+                            children: [
+                              Icon(isPass ? Icons.check_circle_outline : Icons.highlight_off, color: isPass ? AppTheme.successGreen : AppTheme.dangerRed, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(scan['product_name'] ?? 'Product', style: const TextStyle(fontSize: 12, color: AppTheme.slate900), overflow: TextOverflow.ellipsis),
+                              ),
+                              Text(scan['status'] ?? '', style: TextStyle(color: isPass ? AppTheme.successGreen : AppTheme.dangerRed, fontWeight: FontWeight.bold, fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              );
+            }),
+        ],
       ],
     );
   }

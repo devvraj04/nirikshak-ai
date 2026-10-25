@@ -127,6 +127,28 @@ String _structuredTableTab = 'front';
 
   Future<void> _fetchScanOcr() async {
     final String scanId = (widget.item['scan_id'] ?? widget.item['id'] ?? '').toString();
+    final String prodId = (widget.item['product_id'] ?? '').toString();
+
+    if (scanId.isEmpty && prodId.isNotEmpty) {
+      try {
+        final twin = await _apiClient.fetchProductDigitalTwin(prodId);
+        final timeline = twin['compliance_timeline'] as List? ?? [];
+        if (timeline.isNotEmpty) {
+          final firstScan = timeline.first;
+          final firstScanId = firstScan['scan_id']?.toString() ?? '';
+          if (firstScanId.isNotEmpty) {
+            final ocrRes = await _apiClient.getScanOcr(firstScanId);
+            if (mounted) {
+              setState(() {
+                _ocrDetails = ocrRes;
+              });
+            }
+          }
+        }
+      } catch (_) {}
+      return;
+    }
+
     if (scanId.isEmpty) return;
     setState(() => _loadingOcr = true);
     try {
@@ -250,10 +272,11 @@ String _structuredTableTab = 'front';
   /// Fetch twice-daily price history and violation history for this product.
   Future<void> _fetchEcommerceTwin(String scanId) async {
     if (_ecommerceTwinData != null || _loadingEcommerceTwin) return;
-    if (scanId.isEmpty || scanId == 'N/A') return;
+    final String? prodId = widget.item['product_id']?.toString();
+    if ((scanId.isEmpty || scanId == 'N/A') && (prodId == null || prodId.isEmpty)) return;
     setState(() => _loadingEcommerceTwin = true);
     try {
-      final data = await ApiClient().getProductEcommerceTwin(scanId);
+      final data = await ApiClient().getProductEcommerceTwin(scanId, productId: prodId);
       if (mounted) {
         setState(() {
           _ecommerceTwinData = data;
@@ -1488,14 +1511,18 @@ String _structuredTableTab = 'front';
     required Map<String, dynamic> declarations,
     required String scanId,
   }) {
-    final validEntries = imageUrls.entries.where((e) => e.value != null && e.value.toString().isNotEmpty).toList();
+    final Map<String, dynamic> mergedUrls = Map<String, dynamic>.from(imageUrls);
+    if (mergedUrls.isEmpty && widget.item['hero_image_url'] != null) {
+      mergedUrls['front'] = widget.item['hero_image_url'];
+    }
+    final validEntries = mergedUrls.entries.where((e) => e.value != null && e.value.toString().isNotEmpty).toList();
     final availableSides = validEntries.isNotEmpty ? validEntries.map((e) => e.key.toString()).toList() : ['front'];
 
     if (!availableSides.contains(_selectedOcrSide) && availableSides.isNotEmpty) {
       _selectedOcrSide = availableSides.first;
     }
 
-    final currentRawUrl = (imageUrls[_selectedOcrSide] ?? '').toString();
+    final currentRawUrl = (mergedUrls[_selectedOcrSide] ?? (mergedUrls['front'] ?? '')).toString();
     final resolvedImageUrl = currentRawUrl.isNotEmpty
         ? (currentRawUrl.startsWith('http') ? currentRawUrl : '${ApiClient.getBaseUrl}$currentRawUrl')
         : '';

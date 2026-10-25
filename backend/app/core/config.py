@@ -84,9 +84,23 @@ class Settings(BaseSettings):
     ocr_use_gpu: bool = False
 
     # --- File Storage ---
-    storage_backend: Literal["local", "minio", "s3"] = "minio"
+    storage_backend: Literal["local", "minio", "s3", "supabase"] = "supabase"
     local_storage_path: str = "./data/uploads"
     max_upload_size_mb: int = 50
+    supabase_url: str = ""
+    supabase_key: str = ""
+    supabase_storage_bucket: str = "nirikshak-media"
+
+    @property
+    def resolved_supabase_url(self) -> str:
+        """Resolve Supabase project URL, falling back to project ID parsed from DATABASE_URL."""
+        if self.supabase_url:
+            return self.supabase_url.rstrip("/")
+        import re
+        match = re.search(r"postgres\.([a-zA-Z0-9_-]+):", self.database_url)
+        if match:
+            return f"https://{match.group(1)}.supabase.co"
+        return "https://guvfamfmermenpgxobwh.supabase.co"
 
     # --- Celery ---
     celery_broker_url: str = "redis://redis:6379/0"

@@ -13,7 +13,161 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models import Declaration, Product, Scan, TrustScore, Violation, Rule
 
+from sqlalchemy import select, or_, and_, func, desc, asc
+from sqlalchemy.orm import selectinload
+
 router = APIRouter(prefix="/products", tags=["Product Digital Twin"])
+
+
+@router.get("/catalog")
+async def get_product_catalog(
+    query: Optional[str] = None,
+    manufacturer: Optional[str] = None,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    min_trust: Optional[float] = None,
+    max_trust: Optional[float] = None,
+    sort_by: str = "recent",
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Search and filter verified products across generic name, complete brand title,
+    or manufacturer with multi-facet filters and trust scores.
+    """
+    stmt = (
+        select(Product)
+        .options(
+            selectinload(Product.trust_score),
+            selectinload(Product.scans).selectinload(Scan.declarations),
+            selectinload(Product.scans).selectinload(Scan.violations),
+        )
+    )
+
+    if query and query.strip():
+        q_term = f"%{query.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Product.product_name.ilike(q_term),
+                Product.generic_name.ilike(q_term),
+                Product.brand.ilike(q_term),
+                Product.manufacturer.ilike(q_term),
+                Product.barcode == query.strip(),
+            )
+        )
+
+    if manufacturer and manufacturer.strip() and manufacturer.lower() != "all":
+        stmt = stmt.where(Product.manufacturer.ilike(f"%{manufacturer.strip()}%"))
+
+    if category and category.strip() and category.lower() != "all":
+        stmt = stmt.where(Product.category.ilike(f"%{category.strip()}%"))
+
+    if sort_by == "name_asc":
+        stmt = stmt.order_by(Product.product_name.asc())
+    else:
+        stmt = stmt.order_by(Product.updated_at.desc())
+
+    result = await db.execute(stmt)
+    products = result.scalars().all()
+
+    catalog_items = []
+    compliance_counts = {"PASS": 0, "FAIL": 0, "REVIEW": 0}
+    seen_manufacturers = set()
+    seen_categories = set()
+
+    for p in products:
+        trust_val = float(p.trust_score.score) if p.trust_score else 100.0
+        if min_trust is not None and trust_val < min_trust:
+            continue
+        if max_trust is not None and trust_val > max_trust:
+            continue
+
+        scans_sorted = sorted(p.scans, key=lambda s: s.created_at, reverse=True) if p.scans else []
+        latest_scan = scans_sorted[0] if scans_sorted else None
+
+        overall_status = "PASS"
+        if latest_scan and latest_scan.overall_compliance:
+            overall_status = latest_scan.overall_compliance.value
+        elif latest_scan and latest_scan.violations:
+            has_fail = any(v.status.value == "FAIL" for v in latest_scan.violations)
+            overall_status = "FAIL" if has_fail else "PASS"
+
+        compliance_counts[overall_status] = compliance_counts.get(overall_status, 0) + 1
+
+        if status and status.strip() and status.upper() != "ALL":
+            if overall_status != status.strip().upper():
+                continue
+
+        if p.manufacturer:
+            seen_manufacturers.add(p.manufacturer)
+        if p.category:
+            seen_categories.add(p.category)
+
+        hero_img = p.hero_image_url
+        if not hero_img and latest_scan and latest_scan.image_urls:
+            hero_img = (
+                latest_scan.image_urls.get("front")
+                or latest_scan.image_urls.get("main")
+                or latest_scan.image_urls.get("back")
+            )
+
+        meta = p.extra_metadata or {}
+        latest_decls = meta.get("latest_declarations") or {}
+        if not latest_decls and latest_scan and latest_scan.declarations:
+            d = latest_scan.declarations[0]
+            latest_decls = {
+                "mrp": d.mrp,
+                "net_quantity": d.net_quantity,
+                "unit": d.unit,
+                "manufacturer_name": d.manufacturer_name,
+                "manufacture_month": d.manufacture_month,
+                "manufacture_year": d.manufacture_year,
+            }
+
+        total_violations = sum(len(s.violations) for s in scans_sorted)
+
+        catalog_items.append({
+            "product_id": str(p.id),
+            "product_name": p.product_name,
+            "generic_name": p.generic_name or p.product_name,
+            "brand": p.brand or p.manufacturer or "Verified Brand",
+            "manufacturer": p.manufacturer or "LMPC Registered Manufacturer",
+            "category": p.category or "Packaged Goods",
+            "barcode": p.barcode,
+            "hero_image_url": hero_img,
+            "trust_score": round(trust_val, 1),
+            "latest_compliance_status": overall_status,
+            "total_scans": len(scans_sorted),
+            "violations_count": total_violations,
+            "latest_declarations": latest_decls,
+            "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+        })
+
+    # Sort if needed
+    if sort_by == "trust_desc":
+        catalog_items.sort(key=lambda x: x["trust_score"], reverse=True)
+    elif sort_by == "trust_asc":
+        catalog_items.sort(key=lambda x: x["trust_score"])
+    elif sort_by == "mrp_desc":
+        catalog_items.sort(key=lambda x: (x.get("latest_declarations") or {}).get("mrp") or 0.0, reverse=True)
+    elif sort_by == "mrp_asc":
+        catalog_items.sort(key=lambda x: (x.get("latest_declarations") or {}).get("mrp") or 0.0)
+
+    total_count = len(catalog_items)
+    paginated = catalog_items[offset : offset + limit]
+
+    return {
+        "total": total_count,
+        "offset": offset,
+        "limit": limit,
+        "filters": {
+            "available_manufacturers": sorted(list(seen_manufacturers)),
+            "available_categories": sorted(list(seen_categories)),
+            "compliance_counts": compliance_counts,
+        },
+        "items": paginated,
+    }
 
 
 @router.get("/search")
@@ -21,11 +175,13 @@ async def search_products(
     query: str,
     db: AsyncSession = Depends(get_db),
 ) -> List[Dict[str, Any]]:
-    """Search for products by name or barcode."""
+    """Search for products by name, generic name, or barcode."""
     stmt = (
         select(Product)
         .where(
             (Product.product_name.ilike(f"%{query}%")) | 
+            (Product.generic_name.ilike(f"%{query}%")) |
+            (Product.manufacturer.ilike(f"%{query}%")) |
             (Product.barcode == query)
         )
         .limit(10)
@@ -38,6 +194,7 @@ async def search_products(
             "product_id": str(p.id),
             "barcode": p.barcode,
             "product_name": p.product_name,
+            "generic_name": p.generic_name,
             "brand": p.brand,
             "manufacturer": p.manufacturer,
         }

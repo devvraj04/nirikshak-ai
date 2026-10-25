@@ -411,7 +411,17 @@ class PackagingRegionCropper:
                     abs_crop_path = os.path.join(crops_root, "nutrition", filename)
 
                     if self.crop_normalized_box(img_path, box, abs_crop_path):
-                        results["nutrition_table_image"] = rel_crop_url
+                        supa_url = None
+                        if settings.storage_backend == "supabase":
+                            try:
+                                from app.services.storage import StorageService
+                                st = StorageService()
+                                with open(abs_crop_path, "rb") as cf:
+                                    supa_url = st._upload_to_supabase_sync(cf.read(), "crops/nutrition", filename)
+                            except Exception as e:
+                                logger.debug(f"Could not sync nutrition crop to Supabase: {e}")
+
+                        results["nutrition_table_image"] = supa_url or rel_crop_url
                         results["crop_metadata"]["nutrition_panel"] = side
                         results["crop_metadata"]["nutrition_box"] = box
 
@@ -425,7 +435,17 @@ class PackagingRegionCropper:
                     abs_crop_path = os.path.join(crops_root, "ingredients", filename)
 
                     if self.crop_normalized_box(img_path, box, abs_crop_path):
-                        results["ingredients_image"] = rel_crop_url
+                        supa_url = None
+                        if settings.storage_backend == "supabase":
+                            try:
+                                from app.services.storage import StorageService
+                                st = StorageService()
+                                with open(abs_crop_path, "rb") as cf:
+                                    supa_url = st._upload_to_supabase_sync(cf.read(), "crops/ingredients", filename)
+                            except Exception as e:
+                                logger.debug(f"Could not sync ingredients crop to Supabase: {e}")
+
+                        results["ingredients_image"] = supa_url or rel_crop_url
                         results["crop_metadata"]["ingredients_panel"] = side
                         results["crop_metadata"]["ingredients_box"] = box
 

@@ -52,9 +52,15 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db() -> None:
-    """Create all database tables. Used during startup."""
+    """Create all database tables and ensure new columns exist during startup."""
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS generic_name VARCHAR(255);"))
+            await conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS hero_image_url VARCHAR(512);"))
+        except Exception:
+            pass
 
 
 async def close_db() -> None:

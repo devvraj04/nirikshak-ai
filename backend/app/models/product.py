@@ -22,9 +22,11 @@ class Product(Base):
     )
     barcode: Mapped[str | None] = mapped_column(String(100), index=True, nullable=True)
     product_name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    generic_name: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     brand: Mapped[str | None] = mapped_column(String(255), nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(String(255), index=True, nullable=True)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    hero_image_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     extra_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

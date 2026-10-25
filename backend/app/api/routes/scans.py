@@ -51,6 +51,68 @@ async def analyze_surrogate_endpoint(req: SurrogateAnalyzeRequest) -> Dict[str, 
     )
 
 
+@router.post("/quick-ocr")
+async def quick_ocr_endpoint(
+    file: UploadFile = File(...),
+) -> Dict[str, Any]:
+    """
+    Rapid OCR preview endpoint for Circle to Search & Mobile Overlay extension.
+    Saves temporary image, executes rapid OCR, extracts instant entities (Brand, MRP, Net Qty, Mfg),
+    and returns immediate feedback before user decides to submit for formal audit.
+    """
+    import re
+    temp_path = await storage_service.save_upload_file(file, subfolder="scans")
+    abs_path = _resolve_image_path(temp_path)
+    if not abs_path or not os.path.exists(abs_path):
+        raise HTTPException(status_code=400, detail="Could not cache snip image for OCR.")
+
+    try:
+        ocr_res = pipeline_service.ocr_engine.process_image(abs_path)
+    except Exception as e:
+        return {
+            "success": False,
+            "detected_text": "",
+            "entities": {},
+            "confidence": 0.0,
+            "error": str(e),
+        }
+
+    raw_text = ocr_res.processed_text or ocr_res.raw_text or ""
+    lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+
+    # Extract Quick Entities
+    mrp_match = re.search(r"(?:MRP|M\.R\.P\.?|Rs\.?|₹|INR)\s*[:.]?\s*(\d+(?:\.\d{1,2})?)", raw_text, re.IGNORECASE)
+    qty_match = re.search(r"(?:Net\s*(?:Qty|Quantity|Weight|Wt\.?|Vol\.?|Volume)|Net)\s*[:.]?\s*(\d+(?:\.\d+)?)\s*(kg|g|gm|ml|l|ltr|litre|pieces|pcs|tabs|pills)?", raw_text, re.IGNORECASE)
+    mfg_match = re.search(r"(?:Mfg\.?\s*by|Manufactured\s*by|Marketed\s*by|Packed\s*by|M/s\.?)\s*[:.]?\s*([A-Za-z0-9\s.,&'-]{3,60})", raw_text, re.IGNORECASE)
+
+    extracted_mrp = float(mrp_match.group(1)) if mrp_match else None
+    extracted_qty = float(qty_match.group(1)) if qty_match else None
+    extracted_unit = qty_match.group(2).lower() if (qty_match and qty_match.group(2)) else None
+    extracted_mfg = mfg_match.group(1).strip() if mfg_match else None
+
+    # Guess product name from top non-noisy line
+    guessed_title = lines[0] if lines else "Packaged Commodity"
+    for l in lines[:4]:
+        if len(l) > 3 and not re.search(r"^(mrp|net|batch|mfd|exp|best|weight)", l, re.IGNORECASE):
+            guessed_title = l
+            break
+
+    return {
+        "success": True,
+        "image_url": temp_path,
+        "detected_text": raw_text[:800],
+        "line_count": len(lines),
+        "confidence": round(ocr_res.average_confidence, 3),
+        "entities": {
+            "product_name": guessed_title,
+            "mrp": extracted_mrp,
+            "net_quantity": extracted_qty,
+            "unit": extracted_unit,
+            "manufacturer": extracted_mfg,
+        },
+    }
+
+
 @router.post("", status_code=201)
 async def create_scan_session(
     file: UploadFile = File(...),
@@ -105,13 +167,32 @@ async def create_scan_session(
 
 
 def _resolve_image_path(rel_path: str) -> Optional[str]:
-    """Convert a stored relative path to an absolute local file path."""
+    """Convert a stored relative path or Supabase URL to an absolute local file path."""
+    if not rel_path:
+        return None
+
+    # If it's a relative path starting with /uploads
+    if rel_path.startswith("/uploads/"):
+        sub = rel_path.replace("/uploads/", "")
+        candidate = os.path.join("./data/uploads", sub)
+        if os.path.exists(candidate):
+            return candidate
+
     abs_path = os.path.join("./data", rel_path.lstrip("/"))
     if os.path.exists(abs_path):
         return abs_path
-    abs_path = os.path.join("./data/uploads/scans", os.path.basename(rel_path))
-    if os.path.exists(abs_path):
-        return abs_path
+
+    # Extract base filename from URL or path
+    filename = os.path.basename(rel_path.split("?")[0])
+    for sub in ["scans", "crops", "crops/nutrition", "crops/ingredients", "evidence", "products"]:
+        cand = os.path.join("./data/uploads", sub, filename)
+        if os.path.exists(cand):
+            return cand
+
+    cand_direct = os.path.join("./data/uploads", filename)
+    if os.path.exists(cand_direct):
+        return cand_direct
+
     return None
 
 

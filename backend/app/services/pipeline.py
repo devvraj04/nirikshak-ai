@@ -88,11 +88,15 @@ class CompliancePipeline:
         return best_match
 
     async def _find_or_create_product(
-        self, declarations, db: AsyncSession
+        self, declarations, db: AsyncSession, image_urls: Optional[Dict[str, str]] = None
     ) -> Optional[Product]:
         """Find an existing product by manufacturer + product name, or create a new one."""
         mfr = declarations.manufacturer_name or declarations.packer_name or ""
         prod_name = declarations.generic_product_name or ""
+        generic_name = declarations.generic_product_name or None
+        hero_img = None
+        if image_urls:
+            hero_img = image_urls.get("front") or image_urls.get("main") or image_urls.get("back")
         
         if not mfr and not prod_name:
             return None
@@ -123,6 +127,10 @@ class CompliancePipeline:
             existing.extra_metadata["price_history"] = _generate_or_get_twice_daily_price_history(
                 declarations.mrp, existing.extra_metadata
             )
+            if generic_name and not existing.generic_name:
+                existing.generic_name = generic_name
+            if hero_img:
+                existing.hero_image_url = hero_img
             db.add(existing)
             return existing
         
@@ -141,9 +149,11 @@ class CompliancePipeline:
 
         product = Product(
             product_name=prod_name or "Unknown Product",
+            generic_name=generic_name,
             brand=mfr,
             manufacturer=mfr,
-            category=None,
+            category="Food & Beverages",
+            hero_image_url=hero_img,
             extra_metadata=meta,
         )
         db.add(product)
@@ -303,7 +313,7 @@ class CompliancePipeline:
             await db.flush()
 
             # 4. Digital Twin: Find or create Product record
-            product = await self._find_or_create_product(declarations, db)
+            product = await self._find_or_create_product(declarations, db, image_urls=scan.image_urls)
             if product:
                 scan.product_id = product.id
                 db.add(scan)

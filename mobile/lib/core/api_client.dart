@@ -92,6 +92,15 @@ class ApiClient {
     return response.data;
   }
 
+  /// Fast instant OCR preview for Circle to Search & Mobile Extension overlay.
+  Future<Map<String, dynamic>> quickOcr(String filePath) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: 'quick_snip.jpg'),
+    });
+    final response = await dio.post('/scans/quick-ocr', data: formData);
+    return Map<String, dynamic>.from(response.data);
+  }
+
   Future<Map<String, dynamic>> getScanOcr(String scanId) async {
     final response = await dio.get('/scans/$scanId/ocr');
     return Map<String, dynamic>.from(response.data);
@@ -242,6 +251,43 @@ class ApiClient {
   /// Trigger visual region cropping for nutrition table and ingredient declarations.
   Future<Map<String, dynamic>> recropScanPanels(String scanId) async {
     final response = await dio.post('/scans/$scanId/recrop-panels');
+    return Map<String, dynamic>.from(response.data);
+  }
+
+  /// Search & filter product catalog across generic name, brand, manufacturer, status, etc.
+  Future<Map<String, dynamic>> fetchProductCatalog({
+    String? query,
+    String? manufacturer,
+    String? status,
+    String? category,
+    double? minTrust,
+    double? maxTrust,
+    String sortBy = 'recent',
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    final Map<String, dynamic> queryParams = {
+      if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+      if (manufacturer != null && manufacturer.trim().isNotEmpty && manufacturer.toLowerCase() != 'all')
+        'manufacturer': manufacturer.trim(),
+      if (status != null && status.trim().isNotEmpty && status.toLowerCase() != 'all')
+        'status': status.trim().toUpperCase(),
+      if (category != null && category.trim().isNotEmpty && category.toLowerCase() != 'all')
+        'category': category.trim(),
+      if (minTrust != null) 'min_trust': minTrust,
+      if (maxTrust != null) 'max_trust': maxTrust,
+      'sort_by': sortBy,
+      'limit': limit,
+      'offset': offset,
+    };
+
+    final response = await dio.get('/products/catalog', queryParameters: queryParams);
+    return Map<String, dynamic>.from(response.data);
+  }
+
+  /// Get full Digital Twin for a product (history, timeline, declarations, trust score).
+  Future<Map<String, dynamic>> fetchProductDigitalTwin(String productId) async {
+    final response = await dio.get('/products/$productId/twin');
     return Map<String, dynamic>.from(response.data);
   }
 }
