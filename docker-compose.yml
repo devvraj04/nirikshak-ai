@@ -98,33 +98,33 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080
 
   # ============================================
-  # Celery Worker - Background Task Processing
+  # Celery Worker - Background Task Processing (Disabled on 512MB Lightsail to conserve RAM)
   # ============================================
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: nirikshak-vit-worker:latest
-    container_name: nirikshak-worker-vit
-    restart: unless-stopped
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
-    env_file:
-      - .env
-    volumes:
-      - ./backend:/app
-      - ./rag_documetns:/app/rag_documents:ro
-      - paddleocr_data:/root/.paddleocr
-    depends_on:
-      chromadb:
-        condition: service_started
-      redis:
-        condition: service_healthy
-    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+  # worker:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   image: nirikshak-vit-worker:latest
+  #   container_name: nirikshak-worker-vit
+  #   restart: unless-stopped
+  #   dns:
+  #     - 8.8.8.8
+  #     - 1.1.1.1
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./backend:/app
+  #     - ./rag_documetns:/app/rag_documents:ro
+  #     - paddleocr_data:/root/.paddleocr
+  #   depends_on:
+  #     chromadb:
+  #       condition: service_started
+  #     redis:
+  #       condition: service_healthy
+  #   command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
 
 volumes:
   pg_data:

@@ -5,6 +5,7 @@ Executes end-to-end workflow:
 Image -> PaddleOCR -> Declarations -> RAG -> Rule Engine -> Evidence -> Digital Twin -> Database Persistence.
 """
 
+import asyncio
 import os
 import uuid
 from typing import Any, Dict, List, Optional
@@ -236,7 +237,7 @@ class CompliancePipeline:
             primary_image_path = items[0][1]
 
             for side, image_path in items:
-                ocr_payload = self.ocr_engine.process_image(image_path)
+                ocr_payload = await asyncio.to_thread(self.ocr_engine.process_image, image_path)
 
                 # Store each OCR Result in Database
                 ocr_record = OCRResult(
@@ -266,8 +267,8 @@ class CompliancePipeline:
             combined_ocr_text = "\n\n".join(all_raw_text_parts)
             logger.info(f"Combined OCR text ({len(combined_ocr_text)} chars): {combined_ocr_text[:200]}...")
 
-            # 3. Layered Declaration Extraction on combined text from ALL images
-            declarations = self.extractor.extract_declarations(combined_ocr_text)
+            # 3. Layered Declaration Extraction on combined text from ALL images (non-blocking thread)
+            declarations = await asyncio.to_thread(self.extractor.extract_declarations, combined_ocr_text)
 
             # 3.1 Comprehensive Ingredient Safety & Chemical Breakdown Engine
             ingr_text = getattr(declarations, "ingredients_list", None) or getattr(declarations, "composition", None) or ""

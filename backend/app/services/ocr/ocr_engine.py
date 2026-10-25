@@ -7,6 +7,7 @@ on all package faces, filters out pure symbols/noise, maps coordinates back to o
 and writes down everything detected in natural reading order.
 """
 
+import gc
 import math
 import os
 import re
@@ -398,6 +399,10 @@ class OCREngine:
             f"Multi-angle OCR on {os.path.basename(image_path)}: "
             f"captured {len(sorted_blocks)} clean text blocks across 4 orientations."
         )
+
+        # Clean up image buffers from memory
+        del img, scaled_img, orientations
+        gc.collect()
 
         return OCRResultPayload(
             raw_text=raw_text,
